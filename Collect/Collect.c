@@ -23,6 +23,7 @@
 #include <HLDUsart.h>
 #include <pthread.h>
 #include "HLDWatchDog.h"
+#include "DL3762_AFN13.h"
 /*
  * 函数功能:初始化抄表器
  * */
@@ -324,6 +325,11 @@ void CollectTaskA(void)
  * */
 void CollectTaskB(void)
 {
+	unsigned char buf[300] = {0};
+	int len = 0;
+	tpFrame376_2 snframe3762;
+	tp3762Buffer tpbuffer;
+
 	//本次任务是否结束
 	if(_Collect.b_isend == 0)	//未结束
 	{
@@ -356,27 +362,34 @@ void CollectTaskB(void)
 			}
 			else //结束当前任务  执行下一次任务
 			{
-				_Collect.b_isend = 1;
-				_Collect.timer = 0;
-//				_Collect.flag = 0;
-				_Collect.conut = 0;
-				memset(_Collect.amm, 0, AMM_ADDR_LEN);
-				memset(_Collect.dadt, 0, DADT_LEN);
-				_Collect.runingtask = 0;
-				pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
-				DeleNearTaskB();
-				pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
-//				//任务数量--
-//				_Collect.taskb.num--;
-//				//提取下一个任务
-//				p = _Collect.taskb.next;
-//				_Collect.taskb.next = p->next;
-//				//删除上一个任务
-//				if(p != NULL)
-//				{
-//					free(p);
-//					p = NULL;
-//				}
+//				_Collect.b_isend = 1;
+//				_Collect.timer = 0;
+////				_Collect.flag = 0;
+//				_Collect.conut = 0;
+//				memset(_Collect.amm, 0, AMM_ADDR_LEN);
+//				memset(_Collect.dadt, 0, DADT_LEN);
+//				_Collect.runingtask = 0;
+//				pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
+//				DeleNearTaskB();
+//				pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
+				//构造376.2 AFN13上报数据
+				len = 0;
+				Create3762AFN13_01(_Collect.amm, _Collect.taskb.next->type, buf, len, &snframe3762);
+				if(0 == DL3762_Protocol_LinkPack(&snframe3762, &tpbuffer))
+				{
+					pthread_mutex_lock(&writelock);
+					UsartSend(Usart0Fd, tpbuffer.Data, tpbuffer.Len);
+					pthread_mutex_unlock(&writelock);
+					_Collect.b_isend = 1;
+					memset(_Collect.amm, 0, AMM_ADDR_LEN);
+					memset(_Collect.dadt, 0, DADT_LEN);
+					_Collect.conut = 0;
+//								_Collect.flag = 0;
+					_Collect.runingtask = 0;
+					pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
+					DeleNearTaskB();
+					pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
+				}
 			}
 		}
 	}

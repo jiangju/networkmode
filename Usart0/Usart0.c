@@ -183,7 +183,7 @@ void *Usart0(void *data)
 			DL376_2_LinkFrame(&tpbuffer, &rvframe3762);
 			for(i = 0; i < tpbuffer.Len; i++)
 			{
-				printf(" %x",tpbuffer.Data[i]);
+				printf(" %02x",tpbuffer.Data[i]);
 			}
 			printf("\n");
 		}

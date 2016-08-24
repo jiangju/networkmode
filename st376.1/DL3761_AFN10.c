@@ -265,16 +265,6 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 								pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
 								DeleNearTaskB();
 								pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
-//								//提取下一个任务，删除当前任务
-//								_Collect.taskb.num--;
-//								b_p = _Collect.taskb.next;
-//								_Collect.taskb.next = b_p->next;
-//								//删除上一个任务
-//								if(b_p != NULL)
-//								{
-//									free(b_p);
-//									b_p = NULL;
-//								}
 							}
 							break;
 						case 'c':
