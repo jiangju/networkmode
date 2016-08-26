@@ -77,11 +77,13 @@ void AFN14_01(tpFrame376_2 *rvframe3762)
 	tpFrame645 buf;
 	int fd;
 	int i = 0;
+	StandNode node;
+	GetStandNode(_Collect.taskc.index, &node);
 	//判断抄读标志
 	switch (rvframe3762->Frame376_2App.AppData.Buffer[index])
 	{
 		case 0x00:
-			if(1 == CompareUcharArray(_SortNode[_Collect.taskc.index]->Amm, rvframe3762->Frame376_2App.Addr.DestinationAddr, AMM_ADDR_LEN))
+			if(1 == CompareUcharArray(node.Amm, rvframe3762->Frame376_2App.Addr.DestinationAddr, AMM_ADDR_LEN))
 			{
 			//	printf("****************************************************************************\n");
 				_Collect.taskc.isok = 0;
@@ -92,13 +94,14 @@ void AFN14_01(tpFrame376_2 *rvframe3762)
 			}
 			break;
 		case 0x01:
-			if(1 == CompareUcharArray(_SortNode[_Collect.taskc.index]->Amm, rvframe3762->Frame376_2App.Addr.DestinationAddr, AMM_ADDR_LEN))
+			if(1 == CompareUcharArray(node.Amm, rvframe3762->Frame376_2App.Addr.DestinationAddr, AMM_ADDR_LEN))
 			{
 				_Collect.taskc.isok = 0;
 				_Collect.taskc.timer = 0;
 				_Collect.taskc.count = 0;
 				//更新抄表成功标志
-				_SortNode[_Collect.taskc.index]->cyFlag = _RunPara.CyFlag;
+				node.cyFlag = _RunPara.CyFlag;
+				UpdateStandNode(_Collect.taskc.index, &node);
 				while(i--)
 				{
 					fd = open(STAND_BOOK_FILE, O_RDWR, 0666);
@@ -106,7 +109,7 @@ void AFN14_01(tpFrame376_2 *rvframe3762)
 						break;
 				}
 				if(fd >= 0)
-					AlterNodeStandFile(fd, _SortNode[_Collect.taskc.index]);
+					AlterNodeStandFile(fd, &node);
 //				printf("index ok %d\n",_Collect.taskc.index);
 				_Collect.taskc.index++;
 				_Collect.taskc.index %= _StandNodeNum;
@@ -120,7 +123,7 @@ void AFN14_01(tpFrame376_2 *rvframe3762)
 			//获取表地址
 			if(0 == ProtoAnaly645BufFromCycBuf((rvframe3762->Frame376_2App.AppData.Buffer + index), len, &buf))
 			{
-				if(1 == CompareUcharArray(_SortNode[_Collect.taskc.index]->Amm, buf.Address, AMM_ADDR_LEN))
+				if(1 == CompareUcharArray(node.Amm, buf.Address, AMM_ADDR_LEN))
 				{
 					_Collect.taskc.isok = 1;
 					_Collect.taskc.timer = 0;

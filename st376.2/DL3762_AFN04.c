@@ -18,6 +18,72 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include "Collect.h"
+
+void AFN04_01(tpFrame376_2 *snframe3762)
+{
+	unsigned char DT[2] = {0};
+	unsigned char Fn = 0;
+	unsigned short outIndex = 0;
+
+	Fn = 1;		//确认
+	FNtoDT(Fn, DT);
+
+	//数据标识
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = DT[0];
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = DT[1];
+
+	//数据内容
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0xFF;
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0xFF;
+
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0x00;
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0x00;
+	snframe3762->Frame376_2App.AppData.Len = outIndex;
+	snframe3762->Frame376_2Link.Len += outIndex;
+}
+
+void AFN04_03(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
+{
+	int len = 0;
+	unsigned char DT[2] = {0};
+	unsigned char Fn = 0;
+	unsigned char amm[AMM_ADDR_LEN] = {0};
+	unsigned char buf[300] = {0};
+	unsigned short outIndex = 0;
+	unsigned short inIndex = 0;
+	inIndex += 2;	//前2位为数据单元标识
+
+	//测试通信速率
+	inIndex++;
+	//目标地址
+	inIndex += AMM_ADDR_LEN;
+	//通信协议类型
+	inIndex++;
+	//报文长度
+	len = rvframe3762->Frame376_2App.AppData.Buffer[inIndex++];
+	//报文内容
+	memcpy(buf, rvframe3762->Frame376_2App.AppData.Buffer + inIndex, (unsigned char )len);
+	//执行
+	ExecuteCollect1(amm, buf, len);
+
+	/**************************************执行结束后返回确认**************************************/
+	Fn = 1;		//确认
+	FNtoDT(Fn, DT);
+
+	//数据标识
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = DT[0];
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = DT[1];
+
+	//数据内容
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0xFF;
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0xFF;
+
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0x00;
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0x00;
+	snframe3762->Frame376_2App.AppData.Len = outIndex;
+	snframe3762->Frame376_2Link.Len += outIndex;
+}
 
 /*
  * 函数功能:不支持的AFN的响应
@@ -89,23 +155,19 @@ void DL3762_AFN04_Analy(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 
 	temp = snframe3762->Frame376_2App.AppData.Len;
 
-//	switch(Fn)
-//	{
-//		case 1:
-//			AFN05_01(rvframe3762, snframe3762);
-//			break;
-//		case 2:
-//			AFN05_02(rvframe3762, snframe3762);
-//			break;
-//		case 4:
-//			AFN05_04(rvframe3762, snframe3762);
-//			break;
-//		default :
-//			AFN05_Other(snframe3762);
-//			break;
-//	}
+	switch(Fn)
+	{
+		case 1:
+			AFN04_01(snframe3762);
+			break;
+		case 2:
+			AFN04_03(rvframe3762, snframe3762);
+			break;
+		default :
+			AFN04_Other(snframe3762);
+			break;
+	}
 
-	AFN04_Other(snframe3762);
 
 	memset(rvframe3762, 0, sizeof(tpFrame376_2));
 	if(temp == snframe3762->Frame376_2App.AppData.Len)

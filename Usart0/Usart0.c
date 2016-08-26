@@ -55,7 +55,7 @@ void *PthreadUsart0Rv(void *data)
 
 	while(1)
 	{
-		usleep(1);
+		usleep(10);
 
 		feed_watch_dog(wdt_id);	//Î¹¹·
 

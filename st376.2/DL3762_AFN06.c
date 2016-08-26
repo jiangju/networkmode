@@ -21,6 +21,7 @@ void Create3762AFN06_02(unsigned short index,unsigned char type,
 {
 	unsigned short outindex = 0;
 	memset(snframe3762, 0, sizeof(tpFrame376_2));
+	StandNode node;
 	/************************************链路层*************************************/
 	snframe3762->Frame376_2Link.BeginChar = 0x68;
 	snframe3762->Frame376_2Link.Endchar = 0x16;
@@ -35,7 +36,8 @@ void Create3762AFN06_02(unsigned short index,unsigned char type,
 	snframe3762->Frame376_2App.R.CommModeIdentifying = 0x01;	//通信模块表示
 	snframe3762->Frame376_2Link.Len += R_LEN;
 	//地址域
-	memcpy(snframe3762->Frame376_2App.Addr.SourceAddr, _SortNode[index]->Amm, AMM_ADDR_LEN);	//源地址
+	GetStandNode(index, &node);
+	memcpy(snframe3762->Frame376_2App.Addr.SourceAddr, node.Amm, AMM_ADDR_LEN);	//源地址
 	memcpy(snframe3762->Frame376_2App.Addr.DestinationAddr, _RunPara.AFN05_1.HostNode, NODE_ADDR_LEN);//目的地址
 	snframe3762->Frame376_2Link.Len += (6 + 6);
 	//功能码

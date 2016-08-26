@@ -150,18 +150,26 @@ int ExecuteCollect0(unsigned char *amm, unsigned char *inbuf, int len)
 	tpFrame376_1 outbuf;
 	tp3761Buffer snbuf;
 	TerSocket *p;
+	StandNode node;
+
 	ret = SeekAmmAddr(amm, AMM_ADDR_LEN);
 	if(ret < 0)
 	{
 		return -1;
 	}
+
+	if(0 > GetStandNode(ret, &node))
+	{
+		return -1;
+	}
+
 	//构造透明转发帧结构
-	Create3761AFN10_01(_SortNode[ret]->Ter, inbuf, len, 1, &outbuf);
+	Create3761AFN10_01(node.Ter, inbuf, len, 1, &outbuf);
 	//将3761格式数据转换为可发送二进制数据
 	DL3761_Protocol_LinkPack(&outbuf, &snbuf);
 	//差找对应的套接字
 	pthread_mutex_lock(&(route_mutex));
-	p = AccordTerSeek(_SortNode[ret]->Ter);
+	p = AccordTerSeek(node.Ter);
 	if(p != NULL)
 	{
 		pthread_mutex_lock(&(p->write_mutex));
@@ -204,6 +212,8 @@ int ExecuteCollect1(unsigned char *amm, unsigned char *inbuf, int len)
 	{
 		return -1;
 	}
+
+	pthread_mutex_lock(&(route_mutex));
 	TerSocket *p = _FristNode;
 	tpFrame376_1 outbuf;
 	tp3761Buffer snbuf;
@@ -215,7 +225,6 @@ int ExecuteCollect1(unsigned char *amm, unsigned char *inbuf, int len)
 		//将3761格式数据转换为可发送二进制数据
 		DL3761_Protocol_LinkPack(&outbuf, &snbuf);
 
-		pthread_mutex_lock(&(route_mutex));
 		pthread_mutex_lock(&(p->write_mutex));
 		while(1)
 		{
@@ -231,11 +240,9 @@ int ExecuteCollect1(unsigned char *amm, unsigned char *inbuf, int len)
 			}
 		}
 		pthread_mutex_unlock(&(p->write_mutex));
-		pthread_mutex_unlock(&(route_mutex));
-
 		p = p->next;
 	}
-
+	pthread_mutex_unlock(&(route_mutex));
 	sleep(EXE_COLLECT1);	//广播后，为了防止三网合一终端因阻塞，丢失数据，需要休眠
 	return 0;
 }
@@ -420,6 +427,8 @@ void CollectTaskC(void)
 {
 	tpFrame376_2 snframe3762;
 	tp3762Buffer buffer;
+	StandNode node;
+	GetStandNode(_Collect.taskc.index, &node);
 
 	//本次抄收的数据标识是否结束
 	if(_Collect.c_isend == 0)	//没有结束
@@ -434,13 +443,13 @@ void CollectTaskC(void)
 //				_Collect.flag = 0;
 				_Collect.conut++;
 				_Collect.runingtask = 'c';
-				memcpy(_Collect.amm, _SortNode[_Collect.taskc.index]->Amm, AMM_ADDR_LEN);
+				memcpy(_Collect.amm, node.Amm, AMM_ADDR_LEN);
 				memcpy(_Collect.dadt, _Collect.taskc.dadt, DADT_LEN);
 
 				//执行任务
-				if(-1 == ExecuteCollect0(_SortNode[_Collect.taskc.index]->Amm, _Collect.taskc.buf, _Collect.taskc.len))
+				if(-1 == ExecuteCollect0(node.Amm, _Collect.taskc.buf, _Collect.taskc.len))
 				{
-					ExecuteCollect1(_SortNode[_Collect.taskc.index]->Amm, _Collect.taskc.buf, _Collect.taskc.len);
+					ExecuteCollect1(node.Amm, _Collect.taskc.buf, _Collect.taskc.len);
 				}
 			}
 			else if(_Collect.conut == 1)	//第二次失败 采用执行任务方式2
@@ -450,11 +459,11 @@ void CollectTaskC(void)
 //				_Collect.flag = 0;
 				_Collect.conut++;
 				_Collect.runingtask = 'c';
-				memcpy(_Collect.amm, _SortNode[_Collect.taskc.index]->Amm, AMM_ADDR_LEN);
+				memcpy(_Collect.amm, node.Amm, AMM_ADDR_LEN);
 				memcpy(_Collect.dadt, _Collect.taskc.dadt, DADT_LEN);
 
 				//执行任务
-				ExecuteCollect1(_SortNode[_Collect.taskc.index]->Amm, _Collect.taskc.buf, _Collect.taskc.len);
+				ExecuteCollect1(node.Amm, _Collect.taskc.buf, _Collect.taskc.len);
 			}
 			else	//结束当前任务  执行下一次任务
 			{
@@ -484,24 +493,24 @@ void CollectTaskC(void)
 //			_Collect.flag = 0;
 			_Collect.conut = 0;
 			_Collect.runingtask = 'c';
-			memcpy(_Collect.amm, _SortNode[_Collect.taskc.index]->Amm, AMM_ADDR_LEN);
+			memcpy(_Collect.amm, node.Amm, AMM_ADDR_LEN);
 			memcpy(_Collect.dadt, _Collect.taskc.dadt, DADT_LEN);
 
 			//执行任务
-			if(-1 == ExecuteCollect0(_SortNode[_Collect.taskc.index]->Amm, _Collect.taskc.buf, _Collect.taskc.len))
+			if(-1 == ExecuteCollect0(node.Amm, _Collect.taskc.buf, _Collect.taskc.len))
 			{
-				ExecuteCollect1(_SortNode[_Collect.taskc.index]->Amm, _Collect.taskc.buf, _Collect.taskc.len);
+				ExecuteCollect1(node.Amm, _Collect.taskc.buf, _Collect.taskc.len);
 			}
 		}
 		else if(_Collect.taskc.timer == 0)	//请求任务超时
 		{
 			if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
 			{
-				if(_SortNode[_Collect.taskc.index]->cyFlag == _RunPara.CyFlag)
+				if(node.cyFlag == _RunPara.CyFlag)
 				{
 					_Collect.taskc.index++;
 					_Collect.taskc.index %= _StandNodeNum;
-					printf("num  %d  index  %d\n",_StandNodeNum,_Collect.taskc.index);
+//					printf("num  %d  index  %d\n",_StandNodeNum,_Collect.taskc.index);
 					return;
 				}
 			}
@@ -510,7 +519,7 @@ void CollectTaskC(void)
 				_Collect.taskc.count++;
 				if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
 				{
-					CreatAFN14_01up(_SortNode[_Collect.taskc.index]->Amm, &snframe3762);
+					CreatAFN14_01up(node.Amm, &snframe3762);
 					DL3762_Protocol_LinkPack(&snframe3762, &buffer);
 
 					//发送
@@ -527,7 +536,7 @@ void CollectTaskC(void)
 				_Collect.taskc.index %= _StandNodeNum;
 				if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
 				{
-					CreatAFN14_01up(_SortNode[_Collect.taskc.index]->Amm, &snframe3762);
+					CreatAFN14_01up(node.Amm, &snframe3762);
 					DL3762_Protocol_LinkPack(&snframe3762, &buffer);
 
 					//发送
@@ -545,7 +554,7 @@ void CollectTaskC(void)
 				_Collect.taskc.index = 0;
 				if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
 				{
-					CreatAFN14_01up(_SortNode[_Collect.taskc.index]->Amm, &snframe3762);
+					CreatAFN14_01up(node.Amm, &snframe3762);
 					DL3762_Protocol_LinkPack(&snframe3762, &buffer);
 
 					//发送

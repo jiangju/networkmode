@@ -133,7 +133,8 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 	tpFrame376_1 snframe3761;
 	tp3761Buffer ttpbuffer;
 
-	StandNode *p;
+	//StandNode *p;
+	StandNode node;
 	struct topup_node *pp;
 //	struct task_b *b_p;
 //	struct task_e *e_p;
@@ -155,6 +156,10 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 			ret = SeekAmmAddr(frame645.Address, AMM_ADDR_LEN);
 			if(ret < 0)
 				return;
+			if(0 > GetStandNode(ret, &node))
+			{
+				return;
+			}
 			//比较台账中电表对应的终端地址，如果终端地址不一致则更新终端地址
 			ter[0] = rvframe3761->Frame376_1Link.AddrField.WardCode[0];
 			ter[1] = rvframe3761->Frame376_1Link.AddrField.WardCode[1];
@@ -162,7 +167,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 			ter[3] = rvframe3761->Frame376_1Link.AddrField.Addr[1];
 
 			//终端地址与台账中的终端地址不同
-			if(1 != CompareUcharArray(_SortNode[ret]->Ter, ter, TER_ADDR_LEN))
+			if(1 != CompareUcharArray(node.Ter, ter, TER_ADDR_LEN))
 			{
 				//打开文件
 				while(i--)
@@ -173,8 +178,9 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 				}
 				if(fd >= 0)
 				{
-					memcpy(_SortNode[ret]->Ter, ter, TER_ADDR_LEN);
-					AlterNodeStandFile(fd, _SortNode[ret]);
+					memcpy(node.Ter, ter, TER_ADDR_LEN);
+					UpdateStandNode(ret, &node);
+					AlterNodeStandFile(fd, &node);
 					close(fd);
 				}
 			}
@@ -182,8 +188,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 			//比较表号
 			if(1 == CompareUcharArray(_Collect.amm, frame645.Address, AMM_ADDR_LEN))
 			{
-				p = _SortNode[ret];
-				if(0x02 == p->type)
+				if(0x02 == node.type)
 				{
 					if((frame645.CtlField & 0x40) != 0)	//异常应答帧
 					{
@@ -216,27 +221,21 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 							DL3761_Protocol_LinkPack(&snframe3761, &ttpbuffer);
 							pthread_mutex_lock(&(topup_node_mutex));
 							pp = AccordTerFind(_Collect.taska.next->ter);
-							if(p != NULL)
+
+							pthread_mutex_lock(&(pp->write_mutex));
+							while(1)
 							{
-								pthread_mutex_lock(&(pp->write_mutex));
-								while(1)
+								ret = write(pp->s, ttpbuffer.Data, ttpbuffer.Len);
+								if(ret < 0)
 								{
-									ret = write(pp->s, ttpbuffer.Data, ttpbuffer.Len);
-									if(ret < 0)
-									{
-										break;
-									}
-									ttpbuffer.Len -= ret;
-									if(0 == ttpbuffer.Len)
-										break;
+									break;
 								}
-								pthread_mutex_unlock(&(pp->write_mutex));
+								ttpbuffer.Len -= ret;
+								if(0 == ttpbuffer.Len)
+									break;
 							}
-							else
-							{
-								pthread_mutex_unlock(&(topup_node_mutex));
-								break;
-							}
+							pthread_mutex_unlock(&(pp->write_mutex));
+
 							pthread_mutex_unlock(&(topup_node_mutex));
 							_Collect.a_isend = 1;
 							memset(_Collect.amm, 0, AMM_ADDR_LEN);
@@ -269,7 +268,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 							break;
 						case 'c':
 							//构造 376.2 AFN06上报数据
-							Create3762AFN06_02((unsigned short)ret, p->type, buf, len, &snframe3762);
+							Create3762AFN06_02((unsigned short)ret, node.type, buf, len, &snframe3762);
 							if(0 == DL3762_Protocol_LinkPack(&snframe3762, &tpbuffer))
 							{
 								pthread_mutex_lock(&writelock);

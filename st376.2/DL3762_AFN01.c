@@ -63,6 +63,7 @@ void AFN01_02(tpFrame376_2 *snframe3762)
 	{
 		AmmAttribute amm;
 		memset(&amm, 0xFF, sizeof(AmmAttribute));
+		lseek(fd, 0, SEEK_SET);
 		for(i = 0; i < AMM_MAX_NUM; i++)
 		{
 			write(fd, &amm, sizeof(AmmAttribute));

@@ -18,7 +18,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stddef.h>
-
+#include "Collect.h"
 /*
  * 函数功能:设置主节点地址
  * 参数:	rvframe3762	待执行的376.2
@@ -185,7 +185,39 @@ void AFN05_02(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
  * */
 void AFN05_03(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 {
+	int len = 0;
+	unsigned char DT[2] = {0};
+	unsigned char Fn = 0;
+	unsigned char buf[300] = {0};
+	unsigned short outIndex = 0;
+	unsigned short inIndex = 0;
+	inIndex += 2;	//前2位为数据单元标识
 
+	//控制字
+	inIndex++;
+	//报文长度
+	len = rvframe3762->Frame376_2App.AppData.Buffer[inIndex++];
+	//报文内容
+	memcpy(buf, rvframe3762->Frame376_2App.AppData.Buffer + inIndex, len);
+	//执行广播
+	ExecuteCollect1(NULL, buf, len);
+
+	/*************************************执行广播后返回确认帧**********************************/
+	Fn = 1;		//确认
+	FNtoDT(Fn, DT);
+
+	//数据标识
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = DT[0];
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = DT[1];
+
+	//数据内容
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0xFF;
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0xFF;
+
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0x00;
+	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0x00;
+	snframe3762->Frame376_2App.AppData.Len = outIndex;
+	snframe3762->Frame376_2Link.Len += outIndex;
 }
 
 /*
@@ -345,6 +377,9 @@ void DL3762_AFN05_Analy(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 			break;
 		case 2:
 			AFN05_02(rvframe3762, snframe3762);
+			break;
+		case 3:
+			AFN05_03(rvframe3762, snframe3762);
 			break;
 		case 4:
 			AFN05_04(rvframe3762, snframe3762);

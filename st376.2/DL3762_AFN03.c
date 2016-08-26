@@ -79,7 +79,7 @@ void AFN03_03(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	unsigned char num = 0;
 	unsigned short inIndex = 2;
 	unsigned short outIndex = 2;
-
+	StandNode node;
 	//获取开始节点索引
 	p = rvframe3762->Frame376_2App.AppData.Buffer[inIndex++];
 	//读取数量
@@ -104,8 +104,13 @@ void AFN03_03(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = num;
 	while(num > 0)
 	{
+		if(0 > GetStandNode(p + num - 1, &node))
+		{
+			num--;
+			continue;
+		}
 		//从节点地址
-		memcpy(snframe3762->Frame376_2App.AppData.Buffer + outIndex, _SortNode[p + num - 1]->Amm, AMM_ADDR_LEN);
+		memcpy(snframe3762->Frame376_2App.AppData.Buffer + outIndex, node.Amm, AMM_ADDR_LEN);
 		outIndex += AMM_ADDR_LEN;
 		snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0;
 		snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0;

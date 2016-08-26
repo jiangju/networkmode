@@ -84,17 +84,23 @@ int SeekAmmAddr(unsigned char *addr, unsigned char len)
 	int ret = 0;
 	if(0 == _StandNodeNum)	//没有节点
 		return -1;
+
+	pthread_mutex_lock(&StandMutex);
 	while(low <= high)
 	{
 		mid = (low + high) / 2;
 		ret = CompareUcharArray(addr, _SortNode[mid]->Amm, len);
 		if(1 == ret)
+		{
+			pthread_mutex_unlock(&StandMutex);
 			return mid;
+		}
 		if(-1 == ret)
 			high = mid - 1;
 		if(0 == ret)
 			low = mid + 1;
 	}
+	pthread_mutex_unlock(&StandMutex);
 	return -1;
 }
 
@@ -118,12 +124,16 @@ int AddNodeStand(StandNode *node)
 
 	if(node->num >= AMM_MAX_NUM)
 		return -1;
+	pthread_mutex_lock(&StandMutex);
 	//本次添加为第一次添加
 	if(0 == _StandNodeNum)
 	{
 		p = (StandNode *)malloc(sizeof(StandNode));
 		if(NULL == p)
+		{
+			pthread_mutex_unlock(&StandMutex);
 			return -1;
+		}
 		//表地址
 		memcpy(p->Amm, node->Amm, AMM_ADDR_LEN);
 		//规约类型
@@ -139,16 +149,20 @@ int AddNodeStand(StandNode *node)
 		_StandNodeNum = 1;
 		//记录台账文件空余
 		SetStandFleNoSurplus(p->num);
+		pthread_mutex_unlock(&StandMutex);
 		return 0;
 	}
-
+	pthread_mutex_unlock(&StandMutex);
 	//添加时，检查有没有相同的电表
 	ret = SeekAmmAddr(node->Amm, AMM_ADDR_LEN);
+	pthread_mutex_lock(&StandMutex);
 	if(-1 == ret)	//没有相同的电表
 	{
 		if(AMM_MAX_NUM == _StandNodeNum)	//台账已满
+		{
+			pthread_mutex_unlock(&StandMutex);
 			return -1;
-
+		}
 		//计算电表插入的位置，升序
 		while(low <= high)
 		{
@@ -184,7 +198,10 @@ int AddNodeStand(StandNode *node)
 
 		p = (StandNode *)malloc(sizeof(StandNode));
 		if(NULL == p)
+		{
+			pthread_mutex_unlock(&StandMutex);
 			return -1;
+		}
 		//表地址
 		memcpy(p->Amm, node->Amm, AMM_ADDR_LEN);
 		//规约类型
@@ -202,6 +219,7 @@ int AddNodeStand(StandNode *node)
 		_SortNode[mid] = p;
 		memcpy((_SortNode + mid + 1), (temp + mid), sizeof(StandNode *)*(_StandNodeNum - mid));
 		_StandNodeNum += 1;
+		pthread_mutex_unlock(&StandMutex);
 		return 0;
 	}
 	else	//有相同的电表
@@ -209,6 +227,7 @@ int AddNodeStand(StandNode *node)
 		_SortNode[ret]->type = node->type;
 		memcpy(_SortNode[ret]->Ter, node->Ter, TER_ADDR_LEN);
 		_SortNode[ret]->cyFlag = node->cyFlag;
+		pthread_mutex_unlock(&StandMutex);
 		return 0;
 	}
 }
@@ -249,6 +268,7 @@ int DeleNodeStand(int fd, unsigned char *addr)
 		return -1;
 
 	//删除文件中的电表
+	pthread_mutex_lock(&StandMutex);
 	ret = DeleNodeStandFile(fd, _SortNode[index]->num);
 	if(-1 == ret)
 		printf("dele stand file amm erro\n");
@@ -263,6 +283,7 @@ int DeleNodeStand(int fd, unsigned char *addr)
 	memcpy(_SortNode, temp, sizeof(StandNode *) * index);
 	memcpy((_SortNode + index), (temp + index + 1), sizeof(StandNode *) * (_StandNodeNum - 1 - index));
 	_StandNodeNum -= 1;
+	pthread_mutex_unlock(&StandMutex);
 	return 0;
 }
 
@@ -279,7 +300,9 @@ int AlterRouteStand(unsigned char *amm, unsigned char *ter)
 	index = SeekAmmAddr(amm, AMM_ADDR_LEN);
 	if(-1 == index)
 		return -1;
+	pthread_mutex_lock(&StandMutex);
 	memcpy(_SortNode[index]->Ter, ter, TER_ADDR_LEN);
+	pthread_mutex_unlock(&StandMutex);
 	return 0;
 }
 
@@ -308,4 +331,43 @@ int AlterNodeStandFile(int fd, StandNode *node)
 	offset = node->num * sizeof(AmmAttribute);
 	ret = WriteFile(fd, offset, &amm, sizeof(AmmAttribute));
 	return ret;
+}
+
+/*
+ * 函数功能:获取台账中相应电表内容
+ * 参数	index	索引
+ * 		node 	输出台账节点
+ * 返回值 0成功 -1失败
+ * */
+int GetStandNode(int index, StandNode *node)
+{
+	if(index >= _StandNodeNum)
+	{
+		return -1;
+	}
+
+	memset(node, 0, sizeof(StandNode));
+	pthread_mutex_lock(&StandMutex);
+	memcpy(node, _SortNode[index], sizeof(StandNode));
+	pthread_mutex_unlock(&StandMutex);
+
+	return 0;
+}
+
+/*
+ * 函数功能:更新台账节点内容（内存中）
+ * 参数:	index	索引
+ * 		node 	更新内容
+ * 返回值: 0 成功 -1 失败
+ * */
+int UpdateStandNode(int index, StandNode *node)
+{
+	if(index >= _StandNodeNum)
+	{
+		return -1;
+	}
+	pthread_mutex_lock(&StandMutex);
+	memcpy(_SortNode[index], node, sizeof(StandNode));
+	pthread_mutex_unlock(&StandMutex);
+	return 0;
 }

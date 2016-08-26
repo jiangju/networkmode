@@ -483,6 +483,8 @@ void GetAmmStandBook(void)
  * */
 void GlobalVariableInit(void)
 {
+	//初始化台账锁
+	pthread_mutex_init(&StandMutex, NULL);
 	//运行参数
 	memset(&_RunPara, 0, sizeof(RunPara));
 	//存放排序后的台账节点

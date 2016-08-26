@@ -61,6 +61,7 @@ void AFN10_02(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	unsigned char count1 = 0;
 	unsigned short inIndex = 2;
 	unsigned short outIndex = 2;
+	StandNode node;
 	int	i = 0;
 
 	//判断接受数据的长度是否合理	数据标识+从节点起始序号+从节点数量
@@ -110,14 +111,15 @@ void AFN10_02(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	//从节点信息
 	for(i = 0; i < count1; i++)
 	{
+		GetStandNode(serialNum - 1 + i, &node);
 		//从节点地址
 		memcpy((snframe3762->Frame376_2App.AppData.Buffer + outIndex),
-				_SortNode[serialNum - 1 + i]->Amm, AMM_ADDR_LEN);
+				node.Amm, AMM_ADDR_LEN);
 		outIndex += AMM_ADDR_LEN;
 
 		//从节点信息
 		snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0xFF;
-		temp = (_SortNode[serialNum - 1 + i]->type << 3)  & 0x38;
+		temp = (node.type << 3)  & 0x38;
 		snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp | 0x4;
 	}
 
@@ -154,6 +156,7 @@ void AFN10_04(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	int	i = 0;
 	unsigned char temp = 0;
 	unsigned short num = 0;
+	StandNode node;
 	//运行状态字(路由学习完成)
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0x01;
 
@@ -166,7 +169,8 @@ void AFN10_04(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	//已抄收节点数量
 	for(i = 0; i < _StandNodeNum; i++)
 	{
-		if(_SortNode[i]->cyFlag == _RunPara.CyFlag)
+		GetStandNode(i, &node);
+		if(node.cyFlag == _RunPara.CyFlag)
 		{
 			num++;
 		}
@@ -222,6 +226,7 @@ void AFN10_05(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	unsigned short temp = 0;
 	unsigned short tempnum = 0;
 	int i = 0;
+	StandNode node;
 
 	//获得起始序号
 	sernum = rvframe3762->Frame376_2App.AppData.Buffer[inIndex++];
@@ -246,16 +251,17 @@ void AFN10_05(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 
 	for(i = 0; i < num && ((sernum + i) < _StandNodeNum); i++)
 	{
+		GetStandNode(sernum - 1 + i, &node);
 		//抄表不成功
-		if(_SortNode[sernum - 1 + i]->cyFlag != _RunPara.CyFlag)
+		if(node.cyFlag != _RunPara.CyFlag)
 		{
 			tempnum++;
 			//从节点地址
-			memcpy(snframe3762->Frame376_2App.AppData.Buffer + outIndex, _SortNode[sernum - 1 + i], AMM_ADDR_LEN);
+			memcpy(snframe3762->Frame376_2App.AppData.Buffer + outIndex, node.Amm, AMM_ADDR_LEN);
 			outIndex += outIndex;
 			//从节点信息
 			snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0x00;
-			temp = _SortNode[sernum - 1 + i]->type;
+			temp = node.type;
 			temp &= 0x7;
 			temp = temp << 3;
 			temp = temp || 0x01;

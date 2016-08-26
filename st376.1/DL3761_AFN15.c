@@ -50,7 +50,7 @@ void DL3761_AFN15_07(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		{
 			//IP µØÖ·
 			memcpy(ip_port.Ip, rvframe3761->Frame376_1App.AppBuf + index, 4);
-//			printf(" %d.%d.%d.%d\n",ip_port.Ip[0],ip_port.Ip[1],ip_port.Ip[2],ip_port.Ip[3]);
+			printf(" %d.%d.%d.%d\n",ip_port.Ip[0],ip_port.Ip[1],ip_port.Ip[2],ip_port.Ip[3]);
 			index += 4;
 			//×ÓÍøÑÚÂë
 			memcpy(ip_port.NetMask, rvframe3761->Frame376_1App.AppBuf + index, 4);
@@ -68,7 +68,7 @@ void DL3761_AFN15_07(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 			ip_port.CS = Func_CS(&ip_port, len);
 			len = offsetof(tpConfiguration, IpPort);
 			res = WriteFile(fd, len, &ip_port, sizeof(tpIpPort));
-//			printf("res********** %d\n",res);
+			printf("res********** %d\n",res);
 			close(fd);
 			break;
 		}

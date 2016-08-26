@@ -84,7 +84,8 @@ void AFN11_01(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 			if(-1 != ret)
 			{
 				printf("add node stand\n");
-				AlterNodeStandFile(fd, _SortNode[ret]);
+				GetStandNode(ret, &node);
+				AlterNodeStandFile(fd, &node);
 			}
 			ret = 0;
 		}

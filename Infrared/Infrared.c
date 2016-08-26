@@ -50,11 +50,12 @@ void *PthreadInfraredRv(void *arg)
 
 	//红外的串口设备文件描述符
 	fcntl(_fd_infrared, F_SETFL, FNDELAY);	//串口不阻塞
+//	fcntl(_fd_infrared, F_SETFL, 0);
 	while(1)
 	{
 		feed_watch_dog(wdt_id);	//喂狗
 
-		usleep(1);
+		usleep(10);
 		memset(usartBuffer, 0, INFRARED_RD_DATA_LEN);
 		printf("");
 		len = read(_fd_infrared, usartBuffer, INFRARED_RD_DATA_LEN);
@@ -111,6 +112,7 @@ void *Infrared(void *data)
 	usart.FlowCtl = 0;
 	usart.isParity = 2;
 	usart.isStop = 1;
+	int i = 0;
 	if(0 != SetUsart(1, &usart))
 	{
 		printf("usart set erro\n");
@@ -155,7 +157,13 @@ void *Infrared(void *data)
 		pthread_mutex_unlock(&_infrared_lock);
 		if(0 == ret)
 		{
+			printf("infrared:");
 			DL376_1_LinkFrame(&outbuf, &rvframe3761);
+			for(i = 0; i < outbuf.Len; i++)
+			{
+				printf(" %02x",outbuf.Data[i]);
+			}
+			printf("\n");
 		}
 		else
 		{

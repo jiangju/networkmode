@@ -40,6 +40,8 @@ int AddNodeStand(StandNode *node);
 int	DeleNodeStandFile(int fd ,int l);
 int DeleNodeStand(int fd, unsigned char *addr);
 int AlterNodeStandFile(int fd, StandNode *node);
+int GetStandNode(int index, StandNode *node);
+int UpdateStandNode(int index, StandNode *node);
 
 #ifndef	_STAND_BOOK_C_
 

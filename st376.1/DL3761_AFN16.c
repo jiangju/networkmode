@@ -42,6 +42,7 @@ void DL3761_AFN16_07(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 
 	if(fd < 0)
 	{
+		printf("AFN 16 open CONFIG_FILE erro\n");
 		return;
 	}
 	else
@@ -61,6 +62,7 @@ void DL3761_AFN16_07(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		}
 		else
 		{
+			printf("AFN 16 read CONFIG_FILE erro\n");
 			close(fd);
 			return;
 		}
