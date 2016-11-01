@@ -24,6 +24,7 @@
 #include <errno.h>
 #include "NetWork0.h"
 #include <HLDWatchDog.h>
+//#include <sys/time.h>
 
 //初始化epoll需要的变量
 static int epollfd;
@@ -507,6 +508,11 @@ void *NetWork0(void *arg)
 
 				pthread_mutex_unlock(&(s_rv->analy_mutex));
 				printf("\n");
+
+//				struct timeval tv;
+//				gettimeofday(&tv, NULL);
+//				printf("up :   s:  %ld;  ms:  %ld\n",tv.tv_sec, (tv.tv_usec / 1000));
+
 				pthread_mutex_lock(&(route_mutex));
 				ter_s->ticker = SOCKET_TICKER;
 				UpdateTerSTime(ter_s);

@@ -22,6 +22,8 @@
 #include "Route.h"
 #include "StandBook.h"
 #include <sys/time.h>
+#include "SeekAmm.h"
+#include "log3762.h"
 /*
  * 函数功能:查询版本号
  * */
@@ -116,8 +118,8 @@ void DL3761_AFN16_07(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 	snframe3761->Frame376_1App.AppBuf[index++] = ip_port.Port % 256;
 	snframe3761->Frame376_1App.AppBuf[index++] = ip_port.Port / 256;
 	//端口号1
-	snframe3761->Frame376_1App.AppBuf[index++] = ip_port.Port % 256;
-	snframe3761->Frame376_1App.AppBuf[index++] = ip_port.Port / 256;
+	snframe3761->Frame376_1App.AppBuf[index++] = ip_port.TopPort % 256;
+	snframe3761->Frame376_1App.AppBuf[index++] = ip_port.TopPort / 256;
 
 	//应用层帧长---不包括AFN/SEQ
 	snframe3761->Frame376_1App.Len = index;
@@ -259,7 +261,8 @@ void DL3761_AFN16_11(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 	unsigned char all_num = 0;
 
 	//获取待查询终端地址
-	memcpy(ter, rvframe3761->Frame376_1App.AppBuf + in_index, TER_ADDR_LEN);
+	memcpy(ter, (rvframe3761->Frame376_1App.AppBuf + in_index), TER_ADDR_LEN);
+	printf("ter : %02x %02x %02x %02x\n",ter[0],ter[1],ter[2],ter[3]);
 
 	//查询终端是否在线
 	pthread_mutex_lock(&(route_mutex));
@@ -300,7 +303,7 @@ void DL3761_AFN16_12(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 	unsigned char num = 0;
 	unsigned char temp_num = 0;
 	int index = 0;
-	StandNode *p = NULL;
+	StandNode node;
 
 	//获取待查询终端地址
 	memcpy(ter, rvframe3761->Frame376_1App.AppBuf + in_index, TER_ADDR_LEN);
@@ -364,7 +367,7 @@ void DL3761_AFN16_12(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 			}
 			else
 			{
-				if(-1 == GetStandNode(index, p))
+				if(-1 == GetStandNode(index, &node))
 				{
 					memset(snframe3761->Frame376_1App.AppBuf + out_inidex, 0xFF, AMM_ADDR_LEN);
 					out_inidex += AMM_ADDR_LEN;
@@ -373,9 +376,9 @@ void DL3761_AFN16_12(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 				}
 				else
 				{
-					memcpy(snframe3761->Frame376_1App.AppBuf + out_inidex, p->Amm, AMM_ADDR_LEN);
+					memcpy(snframe3761->Frame376_1App.AppBuf + out_inidex, node.Amm, AMM_ADDR_LEN);
 					out_inidex += AMM_ADDR_LEN;
-					memcpy(snframe3761->Frame376_1App.AppBuf + out_inidex, p->last_t, TIME_FRA_LEN);
+					memcpy(snframe3761->Frame376_1App.AppBuf + out_inidex, node.last_t, TIME_FRA_LEN);
 					out_inidex += TIME_FRA_LEN;
 				}
 			}
@@ -431,6 +434,143 @@ void DL3761_AFN16_13(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 
 	//应用层帧长---不包括AFN/SEQ
 	snframe3761->Frame376_1App.Len = out_inidex;
+
+	snframe3761->IsHaving = true;
+}
+
+/*
+ * 函数功能:查询log日志开关状态
+ * */
+void DL3761_AFN16_14(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
+{
+	unsigned short out_inidex = 4;
+
+	//
+	pthread_mutex_lock(&_log_3762_cfg_mutex);
+	if(_cfg3762_fd_flag != 0x66)
+	{
+		//打开log配置文件，获取当前记录状态
+		_cfg3762_fd = open(LOG_3762_FILE_CFG, O_RDWR | O_CREAT, 0666);
+		if(_cfg3762_fd < 0)
+		{
+			perror("open log config: ");
+			pthread_exit(NULL);
+		}
+	}
+	//获取配置文件属性
+	lseek(_cfg3762_fd, 0, SEEK_SET);
+	read(_cfg3762_fd, &_log_cfg, sizeof(struct log_config));
+	if(_log_cfg.flag == 0x00)
+		snframe3761->Frame376_1App.AppBuf[out_inidex++] = 1;
+	else
+		snframe3761->Frame376_1App.AppBuf[out_inidex++] = 0;
+	close(_cfg3762_fd);
+	pthread_mutex_unlock(&_log_3762_cfg_mutex);
+}
+
+/*
+ * 函数功能:搜表结果
+ * */
+void DL3761_AFN16_20(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
+{
+	unsigned short in_index = 4;
+	unsigned short out_index = 4;
+	unsigned short i = 0;
+	unsigned short num = 0;
+	struct seek_amm_result result;
+	//获取终端总数量
+	num = rvframe3761->Frame376_1App.AppBuf[in_index] + rvframe3761->Frame376_1App.AppBuf[in_index + 1] * 256;
+	snframe3761->Frame376_1App.AppBuf[out_index] =  rvframe3761->Frame376_1App.AppBuf[in_index];
+	snframe3761->Frame376_1App.AppBuf[out_index + 1] =  rvframe3761->Frame376_1App.AppBuf[in_index + 1];
+	in_index += 2;
+	out_index += 2;
+	for(i = 0; i < num; i++)
+	{
+		//获取待查询搜表结果的终端
+		memcpy(result.ter, (rvframe3761->Frame376_1App.AppBuf + in_index), TER_ADDR_LEN);
+		in_index += TER_ADDR_LEN;
+		memcpy((snframe3761->Frame376_1App.AppBuf + out_index), result.ter, TER_ADDR_LEN);
+		out_index += TER_ADDR_LEN;
+		//获取搜表结果
+		if(0 == get_seek_amm_result(result.ter, &result))
+		{
+			snframe3761->Frame376_1App.AppBuf[out_index++] = (unsigned char)result.num;
+		}
+		else
+		{
+			snframe3761->Frame376_1App.AppBuf[out_index++] = 0;
+		}
+	}
+
+	//应用层帧长---不包括AFN/SEQ
+	snframe3761->Frame376_1App.Len = out_index;
+
+	snframe3761->IsHaving = true;
+}
+
+/*
+ * 函数功能:搜表结果详情
+ * */
+void DL3761_AFN16_21(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
+{
+	unsigned short in_index = 4;
+	unsigned short out_index = 4;
+	unsigned char num = 0;
+	unsigned char index = 0;
+	unsigned char ter[TER_ADDR_LEN] = {0};
+	unsigned char i = 0;
+	struct seek_amm_result result;
+
+	//获取终端地址
+	memcpy(ter, (rvframe3761->Frame376_1App.AppBuf + in_index), TER_ADDR_LEN);
+	in_index += TER_ADDR_LEN;
+	//获取起始序号
+	index = rvframe3761->Frame376_1App.AppBuf[in_index++];
+	if(0 == index)
+		index = 1;
+	//获取个数
+	num = rvframe3761->Frame376_1App.AppBuf[in_index++];
+
+	if(0 == get_seek_amm_result(result.ter, &result))
+	{
+		memcpy((snframe3761->Frame376_1App.AppBuf + out_index), ter, TER_ADDR_LEN);
+		out_index += TER_ADDR_LEN;
+		if((index +num) > (unsigned char)result.num)
+		{
+			if(index > (unsigned char)result.num)
+			{
+				snframe3761->Frame376_1App.AppBuf[out_index++] = 0;
+			}
+			else
+			{
+				snframe3761->Frame376_1App.AppBuf[out_index++] = (unsigned char)result.num - index - 1;
+				for(i = (index - 1); i < (unsigned char)result.num; i++)
+				{
+					memcpy((snframe3761->Frame376_1App.AppBuf + out_index),(unsigned char *)(result.amm + i), TER_ADDR_LEN);
+					out_index += TER_ADDR_LEN;
+				}
+			}
+		}
+		else
+		{
+			snframe3761->Frame376_1App.AppBuf[out_index++] = num;
+			for(i = (index - 1); i < (index - 1 + num); i++)
+			{
+				memcpy((snframe3761->Frame376_1App.AppBuf + out_index),(unsigned char *)(result.amm + i), TER_ADDR_LEN);
+				out_index += TER_ADDR_LEN;
+			}
+		}
+
+	}
+	else
+	{
+		memcpy((snframe3761->Frame376_1App.AppBuf + out_index), ter, TER_ADDR_LEN);
+		out_index += TER_ADDR_LEN;
+		snframe3761->Frame376_1App.AppBuf[out_index++] = 0;
+	}
+
+	//应用层帧长---不包括AFN/SEQ
+	snframe3761->Frame376_1App.Len = out_index;
 
 	snframe3761->IsHaving = true;
 }
@@ -513,6 +653,15 @@ void DL3761_AFN16_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 			break;
 		case 13:
 			DL3761_AFN16_13(rvframe3761, snframe3761);
+			break;
+		case 14:
+			DL3761_AFN16_14(rvframe3761, snframe3761);
+			break;
+		case 20:
+			DL3761_AFN16_20(rvframe3761, snframe3761);
+			break;
+		case 21:
+			DL3761_AFN16_21(rvframe3761, snframe3761);
 			break;
 		default:
 			break;

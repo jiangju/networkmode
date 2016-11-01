@@ -90,6 +90,29 @@ void AFN11_01(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 			ret = 0;
 		}
 		close(fd);
+
+		//打开文件
+		while(i--)
+		{
+			fd = open(CONFIG_FILE, O_RDWR);
+			if(fd >=0 )
+				break;
+		}
+
+		if(fd < 0)
+		{
+			_RunPara.StandFlag = 0x1;
+			goto Afn0;
+		}
+
+		tpIsStand stand;
+		int len;
+		len = offsetof(tpConfiguration, StandFlag);
+		memcpy(&stand.flag, &_RunPara.StandFlag, 1);
+		stand.CS = Func_CS((void*)&stand, len);
+		len = offsetof(tpConfiguration, StandFlag);
+		WriteFile(fd, len, (void*)&stand, sizeof(tpCyFlag));
+
 	}
 
 Afn0:		//应答

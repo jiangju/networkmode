@@ -9,6 +9,30 @@
 #include <stdio.h>
 #include <string.h>
 #include "CommLib.h"
+
+/*
+ * 函数功能:构造645帧
+ * */
+int Create645From(tpFrame645 * buf645, Buff645 *outbuf)
+{
+	if(NULL == buf645)
+		return -1;
+	unsigned char index = 0;
+	memset(outbuf, 0, DL645_DATALENGTH);
+
+	outbuf->buf[index++] = 0x68;
+	memcpy((outbuf->buf + index), buf645->Address, AMM_ADDR_LEN);
+	index += AMM_ADDR_LEN;
+	outbuf->buf[index++] = 0x68;
+	outbuf->buf[index++] = buf645->CtlField;
+	outbuf->buf[index++] = buf645->Length;
+	memcpy((outbuf->buf + index), buf645->Datas, buf645->Length);
+	index += buf645->Length;
+	outbuf->buf[index++] = Func_CS(outbuf->buf, buf645->Length + 10);
+	outbuf->buf[index++] = 0x16;
+	return 0;
+}
+
 /*
  * 函数功能:解析数据判断645帧
  * 参数:	buf

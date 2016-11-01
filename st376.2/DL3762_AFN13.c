@@ -93,9 +93,9 @@ void AFN13_01(tpFrame376_2 *rvframe3762)
 			memcpy(task.dadt, frame645.Datas, 2);
 		}
 		task.next = NULL;
-		pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
+//		pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
 		AddTashB(&task);
-		pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
+//		pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
 	}
 }
 

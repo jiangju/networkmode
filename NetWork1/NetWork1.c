@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <sys/types.h>          /* See NOTES */
 #include <sys/socket.h>
+//#include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
@@ -645,6 +646,11 @@ void *NetWork1(void *arg)
 					ter_s->rvbuf.w %= SOCKET_RV_MAX;
 				}
 				printf("\n");
+
+//				struct timeval tv;
+//				gettimeofday(&tv, NULL);
+//				printf("top up  s:  %ld;  ms:  %ld\n",tv.tv_sec, (tv.tv_usec / 1000));
+
 				ter_s->ticker = SOCKET_TICKER;
 				pthread_mutex_unlock(&(ter_s->rvbuf.bufmutex));
 				threadpool_add_job(_Threadpool, NetWork1Job0, (void*)ter_s);

@@ -25,6 +25,10 @@
 #include "CommLib.h"
 #include "HLDWatchDog.h"
 #include "DL3762_AFN13.h"
+#include "DL645.h"
+#include "SeekAmm.h"
+#include "NetWork1.h"
+
 /*
  * 函数功能:初始化抄表器
  * */
@@ -43,25 +47,156 @@ void CollectorInit(void)
 	_Collect.taska.node_tail = NULL;
 
 	pthread_mutex_init(&_Collect.taskb.taskb_mutex, NULL);	//任务B锁
-	pthread_mutex_init(&_Collect.taske.taske_mutex, NULL);	//任务B锁
+	pthread_mutex_init(&_Collect.taskc.taskc_mutex, NULL);	//任务C锁
+	pthread_mutex_init(&_Collect.taske.taske_mutex, NULL);	//任务E锁
 
-	_Collect.b_isend = 1;	//当前抄收结束
-	_Collect.c_isend = 1;	//当前抄收结束
-//	_Collect.d_isend = 1;	//当前抄收结束
+	_Collect.status.isend = 1;								//当前抄收结束
+
+	pthread_mutex_init(&_Collect.mutex, NULL);
+
+	BoradcastContorlInit();
 }
 
 /*
- * 函数功能:执行周期抄表重新抄表任务
+ * 函数功能:设置抄表器状态
  * */
-void TaskcReset(void)
+void SetCollectorStatus(CollcetStatus *status)
 {
-	_Collect.taskc.key = 1;
-	_Collect.taskc.count = 3;
-	_Collect.taskc.isok = 0;
-	_Collect.taskc.index = 0;
-	_Collect.taskc.timer = 0;
-	memset(_Collect.taskc.buf, 0 ,TASK_MAX_LEN);
-	memset(_Collect.taskc.dadt, 0, DADT_LEN);
+	pthread_mutex_lock(&_Collect.mutex);
+
+	memcpy(&_Collect.status, status, sizeof(CollcetStatus));
+
+	pthread_mutex_unlock(&_Collect.mutex);
+}
+
+/*
+ * 函数功能:获取抄表器当前任务状态
+ * 参数：	status		返回抄表器任务状态
+ * */
+void GetCollectorStatus(CollcetStatus *status)
+{
+	pthread_mutex_lock(&_Collect.mutex);
+	memcpy(status, &_Collect.status, sizeof(CollcetStatus));
+	pthread_mutex_unlock(&_Collect.mutex);
+}
+
+/*
+ * 函数功能:初始化广播管理器
+ * */
+void BoradcastContorlInit(void)
+{
+	memset(&_BoradContorl, 0, sizeof(BoradcastContorl));
+	pthread_mutex_init(&_BoradContorl.mutex, NULL);
+}
+
+/*
+ * 函数功能:获得广播全局倒计时
+ * */
+int GetBoradcastContorlTimer(void)
+{
+	int ret = 0;
+	pthread_mutex_lock(&_BoradContorl.mutex);
+	ret = _BoradContorl.timer;
+	pthread_mutex_unlock(&_BoradContorl.mutex);
+	return ret;
+}
+
+/*
+ * 函数功能:设置广播全局倒计时时间
+ * */
+void SetBoradcastContorlTimer(int t)
+{
+	pthread_mutex_lock(&_BoradContorl.mutex);
+	_BoradContorl.timer = t;
+	pthread_mutex_unlock(&_BoradContorl.mutex);
+}
+
+/*
+ * 函数功能:广播全局倒计时递减
+ * */
+void BoradcastContorlTimerTicker(void)
+{
+	pthread_mutex_lock(&_BoradContorl.mutex);
+	_BoradContorl.timer--;
+	pthread_mutex_unlock(&_BoradContorl.mutex);
+}
+
+/*
+ * 函数功能:获取刷新广播许可倒计时
+ * */
+int GetBoradcastContorlAllowTimer(void)
+{
+	int ret = 0;
+	pthread_mutex_lock(&_BoradContorl.mutex);
+	ret = _BoradContorl.flush_allow_timer;
+	pthread_mutex_unlock(&_BoradContorl.mutex);
+	return ret;
+}
+
+/*
+ * 函数功能:设置刷新广播许可倒计时
+ * */
+void SetBoradcastContorlAllowTimer(int t)
+{
+	pthread_mutex_lock(&_BoradContorl.mutex);
+	_BoradContorl.flush_allow_timer = t;
+	pthread_mutex_unlock(&_BoradContorl.mutex);
+}
+
+/*
+ * 函数功能:刷新广播许可倒计时递减
+ * */
+void BoradcastContorlAllowTimerTicker(void)
+{
+	pthread_mutex_lock(&_BoradContorl.mutex);
+	_BoradContorl.flush_allow_timer--;
+	pthread_mutex_unlock(&_BoradContorl.mutex);
+}
+
+/*
+ * 函数功能:获取广播许可次数，如果许可次数大于0，则减一
+ * 返回值: 许可次数
+ * */
+int GetBoradcastContorlAllowNum(void)
+{
+	int ret = 0;
+	pthread_mutex_lock(&_BoradContorl.mutex);
+	ret = _BoradContorl.allow_num--;
+	pthread_mutex_unlock(&_BoradContorl.mutex);
+	return ret;
+}
+
+/*
+ * 函数功能:设置广播许可次数
+ * 参数:		num 	设置的次数
+ * */
+void SetBoradcastContorlAllowNum(int num)
+{
+	pthread_mutex_lock(&_BoradContorl.mutex);
+	_BoradContorl.allow_num = num;
+	pthread_mutex_unlock(&_BoradContorl.mutex);
+}
+
+/*
+ * 函数功能:获取抄表器任务倒计时
+ * */
+unsigned char GetCollectorStatusTimer(void)
+{
+	unsigned char ret = 0;
+	pthread_mutex_lock(&_Collect.mutex);
+	ret = _Collect.status.timer;
+	pthread_mutex_unlock(&_Collect.mutex);
+	return ret;
+}
+
+/*
+ * 函数功能:抄表任务倒计时递减
+ * */
+void CollectorStatusTimerTicker(void)
+{
+	pthread_mutex_lock(&_Collect.mutex);
+	_Collect.status.timer--;
+	pthread_mutex_unlock(&_Collect.mutex);
 }
 
 /*
@@ -69,14 +204,282 @@ void TaskcReset(void)
  * */
 void CountDown(int signl)
 {
-	if(_Collect.timer > 0)
+	if(_Collect.status.timer > 0)
 	{
-		_Collect.timer--;
+		_Collect.status.timer--;
 	}
 	if(_Collect.taskc.timer > 0)
 	{
 		_Collect.taskc.timer--;
 	}
+	if(_BoradContorl.timer > 0)
+	{
+		_BoradContorl.timer--;
+	}
+	if(_BoradContorl.flush_allow_timer > 0)
+	{
+		_BoradContorl.flush_allow_timer--;
+	}
+}
+
+/*
+ * 函数功能:抄表器线程
+ * */
+void *Collector(void *arg)
+{
+	int wdt_id = *(int *)arg;
+	feed_watch_dog(wdt_id);	//喂狗
+	close_watch_dog(wdt_id);
+
+	struct itimerval tick;
+
+	signal(SIGALRM, CountDown);
+	memset(&tick, 0, sizeof(tick));
+
+	//Timeout to run first time
+	tick.it_value.tv_sec = 1;
+	tick.it_value.tv_usec = 0;
+
+	//After first, the Interval time for clock
+	tick.it_interval.tv_sec = 1;
+	tick.it_interval.tv_usec = 0;
+
+	if(setitimer(ITIMER_REAL, &tick, NULL) < 0)
+	{
+		perror("Time Down erro:");
+	}
+	//初始化充值任务执行器
+	TaskACollectInit();
+	//创建 维护 充值任务队列线程
+	pthread_t pt;
+	pt = pthread_create(&pt, NULL, TaskATimer, NULL);
+	if(pt < 0)
+	{
+		pthread_exit(NULL);
+	}
+
+	while(1)
+	{
+		feed_watch_dog(wdt_id);	//喂狗
+		usleep(2);
+		//执行充值终端任务
+		if(0 == TaskaIsEmpty())
+		{
+			SetTaskaKey(1);	//允许
+			continue;
+		}
+		SetTaskaKey(0);	//不允许
+
+		//执行实时透传任务
+		if(GetTaskeNum() > 0)
+		{
+			CollectTaskE();
+			continue;
+		}
+
+		//执行实时抄表任务
+		if(GetTaskbNum() > 0)
+		{
+			CollectTaskB();
+			continue;
+		}
+
+		//执行周期抄表任务
+		if(GetTaskcKey() == 1)
+		{
+			CollectTaskC();
+			continue;
+		}
+
+	}
+	pthread_exit(NULL);
+}
+
+/*
+ *函数功能:执行任务方式0
+ *参数:	amm		表号
+ *		inbuf	待发送数据
+ *		len		待发送数据长度
+ *返回值: -1 失败 0 成功
+ * */
+int ExecuteCollect0(unsigned char *amm, unsigned char *inbuf, int len)
+{
+	printf("*******ExecuteCollect0******\n");
+	int ret = 0;
+	tpFrame376_1 outbuf;
+	tp3761Buffer snbuf;
+	TerSocket *p;
+	StandNode node;
+
+	ret = SeekAmmAddr(amm, AMM_ADDR_LEN);
+	if(ret < 0)
+	{
+		return -1;
+	}
+
+	if(0 > GetStandNode(ret, &node))
+	{
+		return -1;
+	}
+
+	//构造透明转发帧结构
+	Create3761AFN10_01(node.Ter, inbuf, len, 1, &outbuf);
+	//将3761格式数据转换为可发送二进制数据
+	DL3761_Protocol_LinkPack(&outbuf, &snbuf);
+	//差找对应的套接字
+//
+//	struct timeval tv;
+//	gettimeofday(&tv, NULL);
+//	printf("send:  %ld;  ms:  %ld\n",tv.tv_sec, (tv.tv_usec / 1000));
+
+	pthread_mutex_lock(&(route_mutex));
+	p = AccordTerSeek(node.Ter);
+	if(p != NULL)
+	{
+		pthread_mutex_lock(&(p->write_mutex));
+
+		while(1)
+		{
+			if(0 == judge_seek_amm_task(p->Ter)) //如果该终端正在搜表，则不进行数据下发
+				break;
+			ret = write(p->s, snbuf.Data, snbuf.Len);
+			if(ret < 0)
+			{
+				break;
+			}
+			snbuf.Len -= ret;
+			if(0 == snbuf.Len)
+			{
+				break;
+			}
+		}
+		pthread_mutex_unlock(&(p->write_mutex));
+	}
+	else
+	{
+		pthread_mutex_unlock(&(route_mutex));
+		return -1;
+	}
+	pthread_mutex_unlock(&(route_mutex));
+	return 0;
+}
+
+/*
+ * 函数功能:执行任务方式1
+ * 参数: amm		电表地址
+ * 		inbuf	待发送的数据
+ * 		len		待发送的数据长度
+ * 	返回值: -1 失败 0 成功
+ * */
+int ExecuteCollect1(unsigned char *amm, unsigned char *inbuf, int len)
+{
+	printf("*******ExecuteCollect1******\n");
+	if(NULL == _FristNode)
+	{
+		return -1;
+	}
+
+	pthread_mutex_lock(&(route_mutex));
+	TerSocket *p = _FristNode;
+	tpFrame376_1 outbuf;
+	tp3761Buffer snbuf;
+	int ret = 0;
+	while(NULL != p)
+	{
+		//构造透明转发帧结构
+		Create3761AFN10_01(p->Ter, inbuf, len, 1, &outbuf);
+		//将3761格式数据转换为可发送二进制数据
+		DL3761_Protocol_LinkPack(&outbuf, &snbuf);
+
+		pthread_mutex_lock(&(p->write_mutex));
+		while(1)
+		{
+			if(0 == judge_seek_amm_task(p->Ter))	//如果该终端正在搜表，则不进行数据下发
+				break;
+			ret = write(p->s, snbuf.Data, snbuf.Len);
+			if(ret < 0)
+			{
+				break;
+			}
+			snbuf.Len -= ret;
+			if(0 == snbuf.Len)
+			{
+				break;
+			}
+		}
+		pthread_mutex_unlock(&(p->write_mutex));
+		p = p->next;
+	}
+	pthread_mutex_unlock(&(route_mutex));
+//	sleep(EXE_COLLECT1);	//广播后，为了防止三网合一终端因阻塞，丢失数据，需要休眠
+	return 0;
+}
+
+/*******************************************任务a的接口*********************************************/
+
+/*
+ * 函数功能:充值终端任务执行器初始化
+ * 参数:
+ * 返回值:
+ * */
+void TaskACollectInit(void)
+{
+	_Collect.taska.task_num = 0;							//任务总数量
+	_Collect.taska.not_assigned_num = 0;					//没有分陪的节点个数
+	_Collect.taska.key = 0;									//不允许充值任务执行
+	_Collect.taska.node_head = NULL;
+	_Collect.taska.node_tail = NULL;
+
+	int i= 0;
+	pthread_t pt[TASKA_THREAD_SIZE];
+	for(i = 0; i < TASKA_THREAD_SIZE; i++)
+	{
+		pthread_create(&pt[i], NULL, CollectTaskA, NULL);
+	}
+}
+
+/*
+ * 函数功能:充值任务队列是否为空
+ * 返回值: 0 不空 -1 空
+ * */
+int TaskaIsEmpty(void)
+{
+	pthread_mutex_lock(&_Collect.taska.taska_mutex);
+	if(_Collect.taska.node_head != NULL)
+	{
+		pthread_mutex_unlock(&_Collect.taska.taska_mutex);
+		return 0;
+	}
+	else
+	{
+		pthread_mutex_unlock(&_Collect.taska.taska_mutex);
+		return -1;
+	}
+}
+
+/*
+ * 函数功能:设置执行充值任务任务开关
+ * */
+void SetTaskaKey(int key)
+{
+	pthread_mutex_lock(&_Collect.taska.taska_mutex);
+
+	_Collect.taska.key = key;
+
+	pthread_mutex_unlock(&_Collect.taska.taska_mutex);
+}
+
+/*
+ * 函数功能:获得充值任务开关状态
+ * 返回值:开关状态 1开  其他关
+ * */
+int GetTaskaKey(void)
+{
+	int ret = 0;
+	pthread_mutex_lock(&_Collect.taska.taska_mutex);
+	ret = _Collect.taska.key;
+	pthread_mutex_unlock(&_Collect.taska.taska_mutex);
+	return ret;
 }
 
 /*
@@ -133,6 +536,11 @@ void *TaskATimer(void *arg)
  * */
 void *CollectTaskA(void *arg)
 {
+	tpFrame645 f645;
+	Buff645 b645;
+	tpFrame376_1 snframe3761;
+	tp3761Buffer ttpbuffer;
+	struct topup_node *pp;
 	int ret = 0;
 	struct task_a_node *temp_node;
 	unsigned char default_mark[TER_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF};
@@ -147,9 +555,10 @@ void *CollectTaskA(void *arg)
 			pthread_cond_wait(&_Collect.taska.need_assigned, &_Collect.taska.taska_mutex);
 		}
 
-		while(_Collect.taska.key != 1 && ret == 1)	//等待已久从队列中取出的其他等级任务执行结束，再执行充值任务
+		if(_Collect.taska.key != 1 && ret == 1)	//等待已久从队列中取出的其他等级任务执行结束，再执行充值任务
 		{								//防止有其他等级的任务刚刚广播结束，这边又继续发送数据导致出错
-			usleep(1);
+			pthread_mutex_unlock(&_Collect.taska.taska_mutex);
+			continue;
 		}
 
 
@@ -171,9 +580,59 @@ void *CollectTaskA(void *arg)
 					//执行任务
 					if(NULL != temp_node->task_head)	//有任务则执行 无任务则不执行
 					{
+						while(GetBoradcastContorlTimer() > 0)
+						{
+							sleep(1);
+						}
 						ret = ExecuteCollect0(temp_node->amm, temp_node->task_head->buf, temp_node->task_head->len);
 						if(-1 == ret)	//任务执行失败 结束任务
 						{
+
+							if(GetBoradcastContorlAllowTimer() <= 0)
+							{
+								SetBoradcastContorlAllowTimer(60);	//设置刷新广播许可倒计时时间
+								SetBoradcastContorlAllowNum(3);	//设置广播许可次数
+							}
+							if(GetBoradcastContorlAllowNum() > 0)
+							{
+								while(GetBoradcastContorlTimer() > 0)
+								{
+									sleep(1);
+								}
+								ret = ExecuteCollect1(temp_node->amm, temp_node->task_head->buf,temp_node->task_head->len);
+								SetBoradcastContorlTimer(3);
+							}
+						}
+
+						if(-1 == ret)
+						{
+							//返回找不到路径给充值终端
+							memcpy(f645.Address, temp_node->amm, AMM_ADDR_LEN);
+							f645.CtlField = 0xC1;
+							f645.Datas[0] = 0xFE;
+							f645.Length = 1;
+							if(0 == Create645From(&f645, &b645))
+							{
+								Create3761AFN10_01(temp_node->task_head->top_ter, b645.buf, b645.len, 0, &snframe3761);
+								//将3761格式数据转换为可发送二进制数据
+								DL3761_Protocol_LinkPack(&snframe3761, &ttpbuffer);
+								pthread_mutex_lock(&(topup_node_mutex));
+								pp = AccordTerFind(temp_node->task_head->top_ter);
+								pthread_mutex_lock(&(pp->write_mutex));
+								while(1)
+								{
+									ret = write(pp->s, ttpbuffer.Data, ttpbuffer.Len);
+									if(ret < 0)
+									{
+										break;
+									}
+									ttpbuffer.Len -= ret;
+									if(0 == ttpbuffer.Len)
+										break;
+								}
+								pthread_mutex_unlock(&(pp->write_mutex));
+								pthread_mutex_unlock(&(topup_node_mutex));
+							}
 							pthread_mutex_unlock(&_Collect.taska.taska_mutex);
 							DeleTaskA(temp_node->amm, 0);
 							pthread_mutex_lock(&_Collect.taska.taska_mutex);
@@ -224,533 +683,6 @@ void *CollectTaskA(void *arg)
 	}
 
 	pthread_exit(NULL);
-}
-
-/*
- * 函数功能:抄表器线程
- * */
-void *Collector(void *arg)
-{
-	int wdt_id = *(int *)arg;
-	feed_watch_dog(wdt_id);	//喂狗
-	close_watch_dog(wdt_id);
-
-	struct itimerval tick;
-
-	signal(SIGALRM, CountDown);
-	memset(&tick, 0, sizeof(tick));
-
-	//Timeout to run first time
-	tick.it_value.tv_sec = 1;
-	tick.it_value.tv_usec = 0;
-
-	//After first, the Interval time for clock
-	tick.it_interval.tv_sec = 1;
-	tick.it_interval.tv_usec = 0;
-
-	if(setitimer(ITIMER_REAL, &tick, NULL) < 0)
-	{
-		perror("Time Down erro:");
-	}
-	//初始化充值任务执行器
-	TaskACollectInit();
-	//创建 维护 充值任务队列线程
-	pthread_t pt;
-	pt = pthread_create(&pt, NULL, TaskATimer, NULL);
-	if(pt < 0)
-	{
-		pthread_exit(NULL);
-	}
-
-	while(1)
-	{
-		feed_watch_dog(wdt_id);	//喂狗
-		usleep(2);
-		//执行充值终端任务
-		if(_Collect.taska.node_head != NULL)
-		{
-			_Collect.taska.key = 1;	//允许
-			if('a' != _Collect.runingtask)
-				_Collect.runingtask = 'a';
-			continue;
-		}
-		_Collect.taska.key = 0;	//不允许
-
-		//执行实时透传任务
-		if(_Collect.taske.num != 0)
-		{
-			CollectTaskE();
-			continue;
-		}
-
-		//执行实时抄表任务
-		if(_Collect.taskb.num != 0)
-		{
-			CollectTaskB();
-			continue;
-		}
-
-		//执行周期抄表任务
-		if(_Collect.taskc.key == 1)
-		{
-			CollectTaskC();
-			continue;
-		}
-
-		//执行路径发现任务
-//		if(_Collect.taskd.key == 1)
-//		{
-//			continue;
-//		}
-	}
-	pthread_exit(NULL);
-}
-
-/*
- *函数功能:执行任务方式0
- *参数:	amm		表号
- *		inbuf	待发送数据
- *		len		待发送数据长度
- *返回值: -1 失败 0 成功
- * */
-int ExecuteCollect0(unsigned char *amm, unsigned char *inbuf, int len)
-{
-	printf("*******ExecuteCollect0******\n");
-	int ret = 0;
-	tpFrame376_1 outbuf;
-	tp3761Buffer snbuf;
-	TerSocket *p;
-	StandNode node;
-
-	ret = SeekAmmAddr(amm, AMM_ADDR_LEN);
-	if(ret < 0)
-	{
-		return -1;
-	}
-
-	if(0 > GetStandNode(ret, &node))
-	{
-		return -1;
-	}
-
-	//构造透明转发帧结构
-	Create3761AFN10_01(node.Ter, inbuf, len, 1, &outbuf);
-	//将3761格式数据转换为可发送二进制数据
-	DL3761_Protocol_LinkPack(&outbuf, &snbuf);
-	//差找对应的套接字
-	pthread_mutex_lock(&(route_mutex));
-	p = AccordTerSeek(node.Ter);
-	if(p != NULL)
-	{
-		pthread_mutex_lock(&(p->write_mutex));
-
-		while(1)
-		{
-			ret = write(p->s, snbuf.Data, snbuf.Len);
-			if(ret < 0)
-			{
-				break;
-			}
-			snbuf.Len -= ret;
-			if(0 == snbuf.Len)
-			{
-				break;
-			}
-		}
-		pthread_mutex_unlock(&(p->write_mutex));
-	}
-	else
-	{
-		pthread_mutex_unlock(&(route_mutex));
-		return -1;
-	}
-	pthread_mutex_unlock(&(route_mutex));
-	return 0;
-}
-
-/*
- * 函数功能:执行任务方式1
- * 参数: amm		电表地址
- * 		inbuf	待发送的数据
- * 		len		待发送的数据长度
- * 	返回值: -1 失败 0 成功
- * */
-int ExecuteCollect1(unsigned char *amm, unsigned char *inbuf, int len)
-{
-	printf("*******ExecuteCollect1******\n");
-	if(NULL == _FristNode)
-	{
-		return -1;
-	}
-
-	pthread_mutex_lock(&(route_mutex));
-	TerSocket *p = _FristNode;
-	tpFrame376_1 outbuf;
-	tp3761Buffer snbuf;
-	int ret = 0;
-	while(NULL != p)
-	{
-		//构造透明转发帧结构
-		Create3761AFN10_01(p->Ter, inbuf, len, 1, &outbuf);
-		//将3761格式数据转换为可发送二进制数据
-		DL3761_Protocol_LinkPack(&outbuf, &snbuf);
-
-		pthread_mutex_lock(&(p->write_mutex));
-		while(1)
-		{
-			ret = write(p->s, snbuf.Data, snbuf.Len);
-			if(ret < 0)
-			{
-				break;
-			}
-			snbuf.Len -= ret;
-			if(0 == snbuf.Len)
-			{
-				break;
-			}
-		}
-		pthread_mutex_unlock(&(p->write_mutex));
-		p = p->next;
-	}
-	pthread_mutex_unlock(&(route_mutex));
-	sleep(EXE_COLLECT1);	//广播后，为了防止三网合一终端因阻塞，丢失数据，需要休眠
-	return 0;
-}
-
-/*
- * 函数功能:实时采集
- * */
-void CollectTaskB(void)
-{
-	unsigned char buf[300] = {0};
-	int len = 0;
-	tpFrame376_2 snframe3762;
-	tp3762Buffer tpbuffer;
-
-	//本次任务是否结束
-	if(_Collect.b_isend == 0)	//未结束
-	{
-		if(_Collect.timer == 0)	//抄表超时
-		{
-			if(_Collect.conut == 0)	//第一次超时
-			{
-				_Collect.b_isend = 0;
-				_Collect.timer = NET_COLLECT_TIMER;
-//				_Collect.flag = 0;
-				_Collect.conut++;
-				_Collect.runingtask = 'b';
-				memcpy(_Collect.amm, _Collect.taskb.next->amm, AMM_ADDR_LEN);
-				memcpy(_Collect.dadt, _Collect.taskb.next->dadt, DADT_LEN);
-				//执行任务
-				if(-1 == ExecuteCollect0(_Collect.taskb.next->amm, _Collect.taskb.next->buf, _Collect.taskb.next->len))
-				{
-					ExecuteCollect1(_Collect.taskb.next->amm, _Collect.taskb.next->buf, _Collect.taskb.next->len);
-				}
-			}
-			else if(_Collect.conut == 1)	//第二次超时
-			{
-				_Collect.timer = NET_COLLECT_TIMER;
-//				_Collect.flag = 0;
-				_Collect.conut++;
-				_Collect.runingtask = 'b';
-				memcpy(_Collect.amm, _Collect.taskb.next->amm, AMM_ADDR_LEN);
-				memcpy(_Collect.dadt, _Collect.taskb.next->dadt, DADT_LEN);
-				ExecuteCollect1(_Collect.taskb.next->amm, _Collect.taskb.next->buf, _Collect.taskb.next->len);
-			}
-			else //结束当前任务  执行下一次任务
-			{
-//				_Collect.b_isend = 1;
-//				_Collect.timer = 0;
-////				_Collect.flag = 0;
-//				_Collect.conut = 0;
-//				memset(_Collect.amm, 0, AMM_ADDR_LEN);
-//				memset(_Collect.dadt, 0, DADT_LEN);
-//				_Collect.runingtask = 0;
-//				pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
-//				DeleNearTaskB();
-//				pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
-				//构造376.2 AFN13上报数据
-				len = 0;
-				Create3762AFN13_01(_Collect.amm, _Collect.taskb.next->type, buf, len, &snframe3762);
-				if(0 == DL3762_Protocol_LinkPack(&snframe3762, &tpbuffer))
-				{
-					pthread_mutex_lock(&writelock);
-					UsartSend(Usart0Fd, tpbuffer.Data, tpbuffer.Len);
-					pthread_mutex_unlock(&writelock);
-					_Collect.b_isend = 1;
-					memset(_Collect.amm, 0, AMM_ADDR_LEN);
-					memset(_Collect.dadt, 0, DADT_LEN);
-					_Collect.conut = 0;
-//								_Collect.flag = 0;
-					_Collect.runingtask = 0;
-					pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
-					DeleNearTaskB();
-					pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
-				}
-			}
-		}
-	}
-	else						//结束
-	{
-		if(_Collect.taskb.num > 0)
-		{
-			_Collect.b_isend = 0;
-			_Collect.timer = NET_COLLECT_TIMER;
-//			_Collect.flag = 0;
-			_Collect.conut = 0;
-			_Collect.runingtask = 'b';
-			memcpy(_Collect.amm, _Collect.taskb.next->amm, AMM_ADDR_LEN);
-			memcpy(_Collect.dadt, _Collect.taskb.next->dadt, DADT_LEN);
-			//执行任务
-			if(-1 == ExecuteCollect0(_Collect.taskb.next->amm, _Collect.taskb.next->buf, _Collect.taskb.next->len))
-			{
-				ExecuteCollect1(_Collect.taskb.next->amm, _Collect.taskb.next->buf, _Collect.taskb.next->len);
-			}
-		}
-	}
-}
-
-/*
- * 函数功能:执行任务C 周期采集任务
- * */
-void CollectTaskC(void)
-{
-	tpFrame376_2 snframe3762;
-	tp3762Buffer buffer;
-	StandNode node;
-	GetStandNode(_Collect.taskc.index, &node);
-
-	//本次抄收的数据标识是否结束
-	if(_Collect.c_isend == 0)	//没有结束
-	{
-		if(_Collect.timer == 0)	//抄表超时
-		{
-
-			if(_Collect.conut == 0)	//第一次超时 采用执行任务方式1
-			{
-				_Collect.c_isend = 0;
-				_Collect.timer = NET_COLLECT_TIMER;
-//				_Collect.flag = 0;
-				_Collect.conut++;
-				_Collect.runingtask = 'c';
-				memcpy(_Collect.amm, node.Amm, AMM_ADDR_LEN);
-				memcpy(_Collect.dadt, _Collect.taskc.dadt, DADT_LEN);
-
-				//执行任务
-				if(-1 == ExecuteCollect0(node.Amm, _Collect.taskc.buf, _Collect.taskc.len))
-				{
-					ExecuteCollect1(node.Amm, _Collect.taskc.buf, _Collect.taskc.len);
-				}
-			}
-			else if(_Collect.conut == 1)	//第二次失败 采用执行任务方式2
-			{
-				_Collect.c_isend = 0;
-				_Collect.timer = NET_COLLECT_TIMER;
-//				_Collect.flag = 0;
-				_Collect.conut++;
-				_Collect.runingtask = 'c';
-				memcpy(_Collect.amm, node.Amm, AMM_ADDR_LEN);
-				memcpy(_Collect.dadt, _Collect.taskc.dadt, DADT_LEN);
-
-				//执行任务
-				ExecuteCollect1(node.Amm, _Collect.taskc.buf, _Collect.taskc.len);
-			}
-			else	//结束当前任务  执行下一次任务
-			{
-				_Collect.c_isend = 1;
-				_Collect.timer = 0;
-//				_Collect.flag = 0;
-				_Collect.conut = 0;
-				memset(_Collect.amm, 0, AMM_ADDR_LEN);
-				memset(_Collect.dadt, 0, DADT_LEN);
-				_Collect.taskc.count = 0;
-				_Collect.taskc.index++;
-				_Collect.taskc.index %= _StandNodeNum;
-				_Collect.taskc.isok = 0;
-				_Collect.taskc.timer = 0;
-				_Collect.taskc.len = 0;
-				memset(_Collect.taskc.buf, 0, TASK_MAX_LEN);
-				memset(_Collect.taskc.dadt, 0, DADT_LEN);
-			}
-		}
-	}
-	else	//执行一下个任务
-	{
-		if(_Collect.taskc.isok == 1)	//请求任务成功	执行任务
-		{
-			_Collect.c_isend = 0;
-			_Collect.timer = NET_COLLECT_TIMER;
-//			_Collect.flag = 0;
-			_Collect.conut = 0;
-			_Collect.runingtask = 'c';
-			memcpy(_Collect.amm, node.Amm, AMM_ADDR_LEN);
-			memcpy(_Collect.dadt, _Collect.taskc.dadt, DADT_LEN);
-
-			//执行任务
-			if(-1 == ExecuteCollect0(node.Amm, _Collect.taskc.buf, _Collect.taskc.len))
-			{
-				ExecuteCollect1(node.Amm, _Collect.taskc.buf, _Collect.taskc.len);
-			}
-		}
-		else if(_Collect.taskc.timer == 0)	//请求任务超时
-		{
-			if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
-			{
-				if(node.cyFlag == _RunPara.CyFlag)
-				{
-					_Collect.taskc.index++;
-					_Collect.taskc.index %= _StandNodeNum;
-//					printf("num  %d  index  %d\n",_StandNodeNum,_Collect.taskc.index);
-					return;
-				}
-			}
-			if(_Collect.taskc.count < 2)
-			{
-				_Collect.taskc.count++;
-				if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
-				{
-					CreatAFN14_01up(node.Amm, &snframe3762);
-					DL3762_Protocol_LinkPack(&snframe3762, &buffer);
-
-					//发送
-					pthread_mutex_lock(&writelock);
-					UsartSend(Usart0Fd, buffer.Data, buffer.Len);
-					pthread_mutex_unlock(&writelock);
-					_Collect.taskc.timer = AFN14_01_TIMER;
-					_Collect.taskc.isok = 0;
-				}
-			}
-			else if(_Collect.taskc.count == 2)	//请求任务失败2次 则切换下一只表请求任务
-			{
-				_Collect.taskc.index++;
-				_Collect.taskc.index %= _StandNodeNum;
-				if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
-				{
-					CreatAFN14_01up(node.Amm, &snframe3762);
-					DL3762_Protocol_LinkPack(&snframe3762, &buffer);
-
-					//发送
-					pthread_mutex_lock(&writelock);
-					UsartSend(Usart0Fd, buffer.Data, buffer.Len);
-					pthread_mutex_unlock(&writelock);
-					_Collect.taskc.timer = AFN14_01_TIMER;
-					_Collect.taskc.count = 1;
-					_Collect.taskc.isok = 0;
-				}
-			}
-			else if(_Collect.taskc.count >= 3)	//第一次请求任务
-			{
-				//构造发送帧
-				_Collect.taskc.index = 0;
-				if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
-				{
-					CreatAFN14_01up(node.Amm, &snframe3762);
-					DL3762_Protocol_LinkPack(&snframe3762, &buffer);
-
-					//发送
-					pthread_mutex_lock(&writelock);
-					UsartSend(Usart0Fd, buffer.Data, buffer.Len);
-					pthread_mutex_unlock(&writelock);
-					_Collect.taskc.timer = AFN14_01_TIMER;
-					_Collect.taskc.count = 1;
-					_Collect.taskc.isok = 0;
-				}
-			}
-		}
-	}
-}
-
-/*
- * 函数功能:透明转发
- * */
-void CollectTaskE(void)
-{
-	//本次任务是否结束
-	if(_Collect.e_isend == 0)	//未结束
-	{
-		if(_Collect.timer == 0)	//抄表超时
-		{
-			if(_Collect.conut == 0)	//第一次超时
-			{
-				_Collect.e_isend = 0;
-				_Collect.timer = NET_COLLECT_TIMER;
-//				_Collect.flag = 0;
-				_Collect.conut++;
-				_Collect.runingtask = 'e';
-				memcpy(_Collect.amm, _Collect.taske.next->amm, AMM_ADDR_LEN);
-				memcpy(_Collect.dadt, _Collect.taske.next->dadt, DADT_LEN);
-				//执行任务
-				if(-1 == ExecuteCollect0(_Collect.taske.next->amm, _Collect.taske.next->buf, _Collect.taske.next->len))
-				{
-					ExecuteCollect1(_Collect.taske.next->amm, _Collect.taske.next->buf, _Collect.taske.next->len);
-				}
-			}
-			else if(_Collect.conut == 1)	//第二次超时
-			{
-				_Collect.timer = NET_COLLECT_TIMER;
-//				_Collect.flag = 0;
-				_Collect.conut++;
-				_Collect.runingtask = 'e';
-				memcpy(_Collect.amm, _Collect.taske.next->amm, AMM_ADDR_LEN);
-				memcpy(_Collect.dadt, _Collect.taske.next->dadt, DADT_LEN);
-				ExecuteCollect1(_Collect.taske.next->amm, _Collect.taske.next->buf, _Collect.taske.next->len);
-			}
-			else //结束当前任务  执行下一次任务
-			{
-				_Collect.e_isend = 1;
-				_Collect.timer = 0;
-//				_Collect.flag = 0;
-				_Collect.conut = 0;
-				memset(_Collect.amm, 0, AMM_ADDR_LEN);
-				memset(_Collect.dadt, 0, DADT_LEN);
-				_Collect.runingtask = 0;
-				pthread_mutex_lock(&_Collect.taske.taske_mutex);
-				DeleNearTaskE();
-				pthread_mutex_unlock(&_Collect.taske.taske_mutex);
-			}
-		}
-	}
-	else						//结束
-	{
-		if(_Collect.taske.num > 0)
-		{
-			_Collect.e_isend = 0;
-			_Collect.timer = NET_COLLECT_TIMER;
-//			_Collect.flag = 0;
-			_Collect.conut = 0;
-			_Collect.runingtask = 'e';
-			memcpy(_Collect.amm, _Collect.taske.next->amm, AMM_ADDR_LEN);
-			memcpy(_Collect.dadt, _Collect.taske.next->dadt, DADT_LEN);
-			//执行任务
-			if(-1 == ExecuteCollect0(_Collect.taske.next->amm, _Collect.taske.next->buf, _Collect.taske.next->len))
-			{
-				ExecuteCollect1(_Collect.taske.next->amm, _Collect.taske.next->buf, _Collect.taske.next->len);
-			}
-		}
-	}
-}
-
-/*******************************************任务a的接口*********************************************/
-
-/*
- * 函数功能:充值终端任务执行器初始化
- * 参数:
- * 返回值:
- * */
-void TaskACollectInit(void)
-{
-	_Collect.taska.task_num = 0;							//任务总数量
-	_Collect.taska.not_assigned_num = 0;					//没有分陪的节点个数
-	_Collect.taska.key = 0;									//不允许充值任务执行
-	_Collect.taska.node_head = NULL;
-	_Collect.taska.node_tail = NULL;
-
-	int i= 0;
-	pthread_t pt[TASKA_THREAD_SIZE];
-	for(i = 0; i < TASKA_THREAD_SIZE; i++)
-	{
-		pthread_create(&pt[i], NULL, CollectTaskA, NULL);
-	}
 }
 
 /*
@@ -808,7 +740,7 @@ struct task_a_node *SeekTaskANode1(unsigned char *amm)
  * 		buf		数据内容
  * 		len		数据长度
  * 		ter		充值终端地址
- * 返回值 0 成功 -1失败
+ * 返回值 0 成功 -1无该表  -2 被独占  -3
  * */
 int AddTaskA(unsigned char *amm, unsigned char *dadt, unsigned char *buf, int len, unsigned char *ter)
 {
@@ -841,7 +773,7 @@ int AddTaskA(unsigned char *amm, unsigned char *dadt, unsigned char *buf, int le
 		{
 			perror("malloc task a new node:");
 			pthread_mutex_unlock(&_Collect.taska.taska_mutex);
-			return -1;
+			return -3;
 		}
 		memset(new_node, 0, sizeof(struct task_a_node));
 		//终端地址
@@ -860,7 +792,7 @@ int AddTaskA(unsigned char *amm, unsigned char *dadt, unsigned char *buf, int le
 		{
 			perror("malloc task new node content:");
 			pthread_mutex_unlock(&_Collect.taska.taska_mutex);
-			return -1;
+			return -3;
 		}
 		memset(new_node->task_head, 0, sizeof(struct task_a_content));
 		memcpy(new_node->task_head->top_ter, ter, TER_ADDR_LEN);
@@ -896,7 +828,7 @@ int AddTaskA(unsigned char *amm, unsigned char *dadt, unsigned char *buf, int le
 		{
 			//终端已经被独占
 			pthread_mutex_unlock(&_Collect.taska.taska_mutex);
-			return -1;
+			return -2;
 		}
 
 		//添加新任务
@@ -905,7 +837,7 @@ int AddTaskA(unsigned char *amm, unsigned char *dadt, unsigned char *buf, int le
 		{
 			perror("malloc new task a:");
 			pthread_mutex_unlock(&_Collect.taska.taska_mutex);
-			return -1;
+			return -3;
 		}
 		memset(new_task, 0, sizeof(struct task_a_content));
 		memcpy(new_task->top_ter, ter, TER_ADDR_LEN);
@@ -1039,7 +971,133 @@ int DeleTaskA(unsigned char *amm, unsigned char flag)
 	return 0;
 }
 
-/****************************************************************************************************/
+/******************************************************任务B*************************************************/
+/*
+ * 函数功能:获取任务B数量
+ * 返回值: >=0数量  <0错误
+ * */
+int GetTaskbNum(void)
+{
+	int num = 0;
+	pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
+	num = _Collect.taskb.num;
+	pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
+	return num;
+}
+
+/*
+ * 函数功能:实时采集
+ * */
+void CollectTaskB(void)
+{
+	unsigned char buf[300] = {0};
+	int len = 0;
+	tpFrame376_2 snframe3762;
+	tp3762Buffer tpbuffer;
+	CollcetStatus c_status;
+
+	GetCollectorStatus(&c_status);
+	//本次任务是否结束
+	if(c_status.isend == 0)	//未结束
+	{
+		if(c_status.timer == 0)	//抄表超时
+		{
+			if(c_status.conut == 0)	//第一次超时
+			{
+				c_status.isend = 0;
+				c_status.timer = NET_COLLECT_TIMER;
+				c_status.conut++;
+				c_status.runingtask = 'b';
+				memcpy(c_status.amm, _Collect.taskb.next->amm, AMM_ADDR_LEN);
+				memcpy(c_status.dadt, _Collect.taskb.next->dadt, DADT_LEN);
+				//执行任务
+				while(GetBoradcastContorlTimer() > 0)	//广播抄表后需延时一段时间，进行通信
+				{
+					sleep(1);
+				}
+
+				if(-1 == ExecuteCollect0(_Collect.taskb.next->amm, _Collect.taskb.next->buf, _Collect.taskb.next->len))
+				{
+					while(GetBoradcastContorlTimer() > 0)	//广播抄表后需延时一段时间，进行通信
+					{
+						sleep(1);
+					}
+					ExecuteCollect1(_Collect.taskb.next->amm, _Collect.taskb.next->buf, _Collect.taskb.next->len);
+					SetBoradcastContorlTimer(3);
+					c_status.conut = 3;
+				}
+				SetCollectorStatus(&c_status);
+			}
+			else if(c_status.conut == 1)	//第二次超时
+			{
+				c_status.timer = NET_COLLECT_TIMER;
+				c_status.conut++;
+				c_status.runingtask = 'b';
+				memcpy(c_status.amm, _Collect.taskb.next->amm, AMM_ADDR_LEN);
+				memcpy(c_status.dadt, _Collect.taskb.next->dadt, DADT_LEN);
+				while(GetBoradcastContorlTimer() > 0)	//广播抄表后需延时一段时间，进行通信
+				{
+					sleep(1);
+				}
+				ExecuteCollect1(_Collect.taskb.next->amm, _Collect.taskb.next->buf, _Collect.taskb.next->len);
+				SetBoradcastContorlTimer(3);
+				SetCollectorStatus(&c_status);
+			}
+			else //结束当前任务  执行下一次任务
+			{
+				len = 0;
+				Create3762AFN13_01(c_status.amm, _Collect.taskb.next->type, buf, len, &snframe3762);
+				if(0 == DL3762_Protocol_LinkPack(&snframe3762, &tpbuffer))
+				{
+					pthread_mutex_lock(&writelock);
+					UsartSend(Usart0Fd, tpbuffer.Data, tpbuffer.Len);
+					pthread_mutex_unlock(&writelock);
+
+					c_status.isend = 1;
+					memset(c_status.amm, 0, AMM_ADDR_LEN);
+					memset(c_status.dadt, 0, DADT_LEN);
+					c_status.conut = 0;
+					c_status.runingtask = 0;
+					SetCollectorStatus(&c_status);
+
+//					pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
+					DeleNearTaskB();
+//					pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
+				}
+			}
+		}
+	}
+	else						//结束
+	{
+		if(GetTaskbNum() > 0)
+		{
+			c_status.isend = 0;
+			c_status.timer = NET_COLLECT_TIMER;
+			c_status.conut = 0;
+			c_status.runingtask = 'b';
+			memcpy(c_status.amm, _Collect.taskb.next->amm, AMM_ADDR_LEN);
+			memcpy(c_status.dadt, _Collect.taskb.next->dadt, DADT_LEN);
+			//执行任务
+			while(GetBoradcastContorlTimer() > 0)
+			{
+				sleep(1);
+			}
+			if(-1 == ExecuteCollect0(_Collect.taskb.next->amm, _Collect.taskb.next->buf, _Collect.taskb.next->len))
+			{
+				while(GetBoradcastContorlTimer() > 0)	//广播抄表后需延时一段时间，进行通信
+				{
+					sleep(1);
+				}
+				ExecuteCollect1(_Collect.taskb.next->amm, _Collect.taskb.next->buf, _Collect.taskb.next->len);
+				printf("ddddddddddddddddd\n");
+				SetBoradcastContorlTimer(3);
+				c_status.conut = 3;
+			}
+			SetCollectorStatus(&c_status);
+		}
+	}
+}
+
 /*
  * 函数功能:添加任务B
  * 参数:	b	任务数据
@@ -1050,25 +1108,38 @@ int AddTashB(struct task_b *b)
 	struct task_b *newp = NULL;
 	struct task_b *p = NULL;
 	struct task_b *temp = NULL;
+	CollcetStatus c_status;
+	GetCollectorStatus(&c_status);
 
 	if(NULL == b)
 	{
 		return -1;
 	}
+	pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
 	if(NULL == _Collect.taskb.next)	//第一次添加
 	{
 		newp = (struct task_b *)malloc(sizeof(struct task_b));
 		if(NULL == newp)
 		{
+			pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
 			return -1;
 		}
 		memcpy(newp, b, sizeof(struct task_b));
 		_Collect.taskb.next = newp;
 		_Collect.taskb.num = 1;
+		pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
+
+		if(c_status.runingtask == 'c')
+		{
+			memset(&c_status, 0, sizeof(CollcetStatus));
+			c_status.isend = 1;
+			SetCollectorStatus(&c_status);
+		}
 		return 0;
 	}
 	if(TASK_MAX_NUM == _Collect.taskb.num)
 	{
+		pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
 		return -1;
 	}
 
@@ -1083,11 +1154,19 @@ int AddTashB(struct task_b *b)
 	newp = (struct task_b *)malloc(sizeof(struct task_b));
 	if(NULL == newp)
 	{
+		pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
 		return -1;
 	}
 	memcpy(newp, b, sizeof(struct task_b));
 	temp->next = newp;
 	_Collect.taskb.num += 1;
+	pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
+	if(c_status.runingtask == 'c')
+	{
+		memset(&c_status, 0, sizeof(CollcetStatus));
+		c_status.isend = 1;
+		SetCollectorStatus(&c_status);
+	}
 	return 0;
 }
 
@@ -1098,8 +1177,10 @@ int AddTashB(struct task_b *b)
 void DeleNearTaskB(void)
 {
 	struct task_b *b_p;
+	pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
 	if(_Collect.taskb.num <= 0)
 	{
+		pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
 		return;
 	}
 	//提取下一个任务，删除当前任务
@@ -1111,6 +1192,361 @@ void DeleNearTaskB(void)
 	{
 		free(b_p);
 		b_p = NULL;
+	}
+	pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
+}
+
+
+/******************************************************任务C***********************************************/
+/*
+ * 函数功能:执行周期抄表重新抄表任务
+ * */
+void TaskcReset(void)
+{
+	pthread_mutex_lock(&_Collect.taskc.taskc_mutex);
+	_Collect.taskc.key = 1;
+	_Collect.taskc.count = 3;
+	_Collect.taskc.isok = 0;
+	_Collect.taskc.index = 0;
+	_Collect.taskc.timer = 0;
+	memset(_Collect.taskc.buf, 0 ,TASK_MAX_LEN);
+	memset(_Collect.taskc.dadt, 0, DADT_LEN);
+	pthread_mutex_unlock(&_Collect.taskc.taskc_mutex);
+}
+
+/*
+ * 函数功能:获取周期抄表开关状态
+ * 返回值: 开关状态
+ * */
+int GetTaskcKey(void)
+{
+	int key = 0;
+	pthread_mutex_lock(&_Collect.taskc.taskc_mutex);
+	key = _Collect.taskc.key;
+	pthread_mutex_unlock(&_Collect.taskc.taskc_mutex);
+	return key;
+}
+
+/*
+ * 函数功能:获取请求任务倒计时
+ * 返回值:倒计时时间
+ * */
+int GetRequestTimer(void)
+{
+	int ret = 0;
+	pthread_mutex_lock(&_Collect.taskc.taskc_mutex);
+	ret = _Collect.taskc.timer;
+	pthread_mutex_unlock(&_Collect.taskc.taskc_mutex);
+	return ret;
+}
+
+/*
+ * 函数功能:请求任务倒计时递减
+ * */
+void RequestTimerTicker(void)
+{
+	pthread_mutex_lock(&_Collect.taskc.taskc_mutex);
+	_Collect.taskc.timer--;
+	pthread_mutex_unlock(&_Collect.taskc.taskc_mutex);
+}
+
+/*
+ * 函数功能:执行任务C 周期采集任务
+ * */
+void CollectTaskC(void)
+{
+	tpFrame376_2 snframe3762;
+	tp3762Buffer buffer;
+	StandNode node;
+	GetStandNode(_Collect.taskc.index, &node);
+	CollcetStatus c_status;
+
+	GetCollectorStatus(&c_status);
+
+	//本次抄收的数据标识是否结束
+	if(c_status.isend == 0)	//没有结束
+	{
+		if(c_status.timer == 0)	//抄表超时
+		{
+
+			if(c_status.conut == 0)	//第一次超时 采用执行任务方式1
+			{
+				c_status.isend = 0;
+				c_status.timer = NET_COLLECT_TIMER;
+//				_Collect.flag = 0;
+				c_status.conut++;
+				c_status.runingtask = 'c';
+				memcpy(c_status.amm, node.Amm, AMM_ADDR_LEN);
+				memcpy(c_status.dadt, _Collect.taskc.dadt, DADT_LEN);
+
+				//执行任务
+				while(GetBoradcastContorlTimer() > 0)
+				{
+					sleep(1);
+				}
+				if(-1 == ExecuteCollect0(node.Amm, _Collect.taskc.buf, _Collect.taskc.len))
+				{
+					while(GetBoradcastContorlTimer() > 0)	//广播抄表后需延时一段时间，进行通信
+					{
+						sleep(1);
+					}
+					ExecuteCollect1(node.Amm, _Collect.taskc.buf, _Collect.taskc.len);
+					SetBoradcastContorlTimer(3);
+					c_status.conut = 3;
+				}
+				SetCollectorStatus(&c_status);
+			}
+			else if(c_status.conut == 1)	//第二次失败 采用执行任务方式2
+			{
+				c_status.isend = 0;
+				c_status.timer = NET_COLLECT_TIMER;
+				c_status.conut++;
+				c_status.runingtask = 'c';
+				memcpy(c_status.amm, node.Amm, AMM_ADDR_LEN);
+				memcpy(c_status.dadt, _Collect.taskc.dadt, DADT_LEN);
+
+				//执行任务
+				while(GetBoradcastContorlTimer() > 0)	//广播抄表后需延时一段时间，进行通信
+				{
+					sleep(1);
+				}
+				ExecuteCollect1(node.Amm, _Collect.taskc.buf, _Collect.taskc.len);
+				SetBoradcastContorlTimer(3);
+				SetCollectorStatus(&c_status);
+			}
+			else	//结束当前任务  执行下一次任务
+			{
+				c_status.isend = 1;
+				c_status.timer = 0;
+				c_status.conut = 0;
+				memset(c_status.amm, 0, AMM_ADDR_LEN);
+				memset(c_status.dadt, 0, DADT_LEN);
+				SetCollectorStatus(&c_status);
+
+				pthread_mutex_lock(&_Collect.taskc.taskc_mutex);
+				_Collect.taskc.count = 0;
+				_Collect.taskc.index++;
+				_Collect.taskc.index %= _StandNodeNum;
+				_Collect.taskc.isok = 0;
+				_Collect.taskc.timer = 0;
+				_Collect.taskc.len = 0;
+				memset(_Collect.taskc.buf, 0, TASK_MAX_LEN);
+				memset(_Collect.taskc.dadt, 0, DADT_LEN);
+				pthread_mutex_unlock(&_Collect.taskc.taskc_mutex);
+			}
+		}
+	}
+	else	//执行一下个任务
+	{
+		pthread_mutex_lock(&_Collect.taskc.taskc_mutex);
+		if(_Collect.taskc.isok == 1)	//请求任务成功	执行任务
+		{
+			c_status.isend = 0;
+			c_status.timer = NET_COLLECT_TIMER;
+			c_status.conut = 0;
+			c_status.runingtask = 'c';
+			memcpy(c_status.amm, node.Amm, AMM_ADDR_LEN);
+			memcpy(c_status.dadt, _Collect.taskc.dadt, DADT_LEN);
+
+			//执行任务
+			while(GetBoradcastContorlTimer() > 0)
+			{
+				sleep(1);
+			}
+			if(-1 == ExecuteCollect0(node.Amm, _Collect.taskc.buf, _Collect.taskc.len))
+			{
+				while(GetBoradcastContorlTimer() > 0)	//广播抄表后需延时一段时间，进行通信
+				{
+					sleep(1);
+				}
+				ExecuteCollect1(node.Amm, _Collect.taskc.buf, _Collect.taskc.len);
+				SetBoradcastContorlTimer(3);
+				c_status.conut = 3;
+			}
+			SetCollectorStatus(&c_status);
+			_Collect.taskc.isok = 0;
+		}
+		else if(_Collect.taskc.timer == 0)	//请求任务超时
+		{
+			if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
+			{
+				if(node.cyFlag == _RunPara.CyFlag)
+				{
+					_Collect.taskc.index++;
+					_Collect.taskc.index %= _StandNodeNum;
+					pthread_mutex_unlock(&_Collect.taskc.taskc_mutex);
+					return;
+				}
+			}
+			if(_Collect.taskc.count < 2)
+			{
+				_Collect.taskc.count++;
+				if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
+				{
+					CreatAFN14_01up(node.Amm, &snframe3762);
+					DL3762_Protocol_LinkPack(&snframe3762, &buffer);
+
+					//发送
+					pthread_mutex_lock(&writelock);
+					UsartSend(Usart0Fd, buffer.Data, buffer.Len);
+					pthread_mutex_unlock(&writelock);
+					_Collect.taskc.timer = AFN14_01_TIMER;
+					_Collect.taskc.isok = 0;
+				}
+			}
+			else if(_Collect.taskc.count == 2)	//请求任务失败2次 则切换下一只表请求任务
+			{
+				_Collect.taskc.index++;
+				_Collect.taskc.index %= _StandNodeNum;
+				if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
+				{
+					CreatAFN14_01up(node.Amm, &snframe3762);
+					DL3762_Protocol_LinkPack(&snframe3762, &buffer);
+
+					//发送
+					pthread_mutex_lock(&writelock);
+					UsartSend(Usart0Fd, buffer.Data, buffer.Len);
+					pthread_mutex_unlock(&writelock);
+					_Collect.taskc.timer = AFN14_01_TIMER;
+					_Collect.taskc.count = 1;
+					_Collect.taskc.isok = 0;
+				}
+			}
+			else if(_Collect.taskc.count >= 3)	//第一次请求任务
+			{
+				//构造发送帧
+				_Collect.taskc.index = 0;
+				if(_Collect.taskc.index >= 0 && _StandNodeNum > 0)
+				{
+					CreatAFN14_01up(node.Amm, &snframe3762);
+					DL3762_Protocol_LinkPack(&snframe3762, &buffer);
+
+					//发送
+					pthread_mutex_lock(&writelock);
+					UsartSend(Usart0Fd, buffer.Data, buffer.Len);
+					pthread_mutex_unlock(&writelock);
+					_Collect.taskc.timer = AFN14_01_TIMER;
+					_Collect.taskc.count = 1;
+					_Collect.taskc.isok = 0;
+				}
+			}
+		}
+		pthread_mutex_unlock(&_Collect.taskc.taskc_mutex);
+	}
+}
+
+/*************************************************任务E***************************************************/
+
+/*
+ * 函数功能:获取透明转发任务个数
+ * 返回值:>=0 数量 <0错误
+ * */
+int GetTaskeNum(void)
+{
+	int num = 0;
+	pthread_mutex_lock(&_Collect.taske.taske_mutex);
+	num = _Collect.taske.num;
+	pthread_mutex_unlock(&_Collect.taske.taske_mutex);
+	return num;
+}
+
+/*
+ * 函数功能:透明转发
+ * */
+void CollectTaskE(void)
+{
+	CollcetStatus c_status;
+
+	GetCollectorStatus(&c_status);
+	//本次任务是否结束
+	if(c_status.isend == 0)	//未结束
+	{
+		if(c_status.timer == 0)	//抄表超时
+		{
+			if(c_status.conut == 0)	//第一次超时
+			{
+				c_status.isend = 0;
+				c_status.timer = NET_COLLECT_TIMER;
+				c_status.conut++;
+				c_status.runingtask = 'e';
+				memcpy(c_status.amm, _Collect.taske.next->amm, AMM_ADDR_LEN);
+				memcpy(c_status.dadt, _Collect.taske.next->dadt, DADT_LEN);
+				//执行任务
+				while(GetBoradcastContorlTimer() > 0)
+				{
+					sleep(1);
+				}
+				if(-1 == ExecuteCollect0(_Collect.taske.next->amm, _Collect.taske.next->buf, _Collect.taske.next->len))
+				{
+					while(GetBoradcastContorlTimer() > 0)	//广播抄表后需延时一段时间，进行通信
+					{
+						sleep(1);
+					}
+					ExecuteCollect1(_Collect.taske.next->amm, _Collect.taske.next->buf,  _Collect.taske.next->len);
+					SetBoradcastContorlTimer(3);
+					c_status.conut = 3;	//执行完广播后  如果超时 直接结束任务
+				}
+				SetCollectorStatus(&c_status);
+			}
+			else if(c_status.conut == 1)	//第二次超时
+			{
+				c_status.timer = NET_COLLECT_TIMER;
+				c_status.conut++;
+				c_status.runingtask = 'e';
+				memcpy(c_status.amm, _Collect.taske.next->amm, AMM_ADDR_LEN);
+				memcpy(c_status.dadt, _Collect.taske.next->dadt, DADT_LEN);
+				while(GetBoradcastContorlTimer() > 0)	//广播抄表后需延时一段时间，进行通信
+				{
+					sleep(1);
+				}
+				ExecuteCollect1(_Collect.taske.next->amm, _Collect.taske.next->buf,  _Collect.taske.next->len);
+				SetBoradcastContorlTimer(3);
+				SetCollectorStatus(&c_status);
+			}
+			else //结束当前任务  执行下一次任务
+			{
+				c_status.isend = 1;
+				c_status.timer = 0;
+//				_Collect.flag = 0;
+				c_status.conut = 0;
+				memset(c_status.amm, 0, AMM_ADDR_LEN);
+				memset(c_status.dadt, 0, DADT_LEN);
+				c_status.runingtask = 0;
+				SetCollectorStatus(&c_status);
+				pthread_mutex_lock(&_Collect.taske.taske_mutex);
+				DeleNearTaskE();
+				pthread_mutex_unlock(&_Collect.taske.taske_mutex);
+			}
+		}
+	}
+	else						//结束
+	{
+		if(GetTaskeNum() > 0)
+		{
+			c_status.isend = 0;
+			c_status.timer = NET_COLLECT_TIMER;
+//			_Collect.flag = 0;
+			c_status.conut = 0;
+			c_status.runingtask = 'e';
+			memcpy(c_status.amm, _Collect.taske.next->amm, AMM_ADDR_LEN);
+			memcpy(c_status.dadt, _Collect.taske.next->dadt, DADT_LEN);
+			//执行任务
+			while(GetBoradcastContorlTimer() > 0)
+			{
+				sleep(1);
+			}
+			if(-1 == ExecuteCollect0(_Collect.taske.next->amm, _Collect.taske.next->buf, _Collect.taske.next->len))
+			{
+				while(GetBoradcastContorlTimer() > 0)	//广播抄表后需延时一段时间，进行通信
+				{
+					sleep(1);
+				}
+				ExecuteCollect1(_Collect.taske.next->amm, _Collect.taske.next->buf,  _Collect.taske.next->len);
+				SetBoradcastContorlTimer(3);
+				c_status.conut = 3;
+			}
+			SetCollectorStatus(&c_status);
+		}
 	}
 }
 
@@ -1124,26 +1560,39 @@ int AddTashE(struct task_e *e)
 	struct task_e *newp = NULL;
 	struct task_e *p = NULL;
 	struct task_e *temp = NULL;
+	CollcetStatus c_status;
+	GetCollectorStatus(&c_status);
 
 	if(NULL == e)
 	{
+		pthread_mutex_unlock(&_Collect.taske.taske_mutex);
 		return -1;
 	}
-
+	pthread_mutex_lock(&_Collect.taske.taske_mutex);
 	if(NULL == _Collect.taske.next)	//第一次添加
 	{
 		newp = (struct task_e *)malloc(sizeof(struct task_e));
 		if(NULL == newp)
 		{
+			pthread_mutex_unlock(&_Collect.taske.taske_mutex);
 			return -1;
 		}
 		memcpy(newp, e, sizeof(struct task_e));
 		_Collect.taske.next = newp;
 		_Collect.taske.num = 1;
+
+		pthread_mutex_unlock(&_Collect.taske.taske_mutex);
+		if(c_status.runingtask == 'c' || c_status.runingtask == 'b')
+		{
+			memset(&c_status, 0, sizeof(CollcetStatus));
+			c_status.isend = 1;
+			SetCollectorStatus(&c_status);
+		}
 		return 0;
 	}
 	if(TASK_MAX_NUM == _Collect.taske.num)
 	{
+		pthread_mutex_unlock(&_Collect.taske.taske_mutex);
 		return -1;
 	}
 	//遍历到任务尾
@@ -1157,11 +1606,21 @@ int AddTashE(struct task_e *e)
 	newp = (struct task_e *)malloc(sizeof(struct task_e));
 	if(NULL == newp)
 	{
+		pthread_mutex_unlock(&_Collect.taske.taske_mutex);
 		return -1;
 	}
 	memcpy(newp, e, sizeof(struct task_e));
 	temp->next = newp;
 	_Collect.taske.num += 1;
+
+	pthread_mutex_unlock(&_Collect.taske.taske_mutex);
+
+	if(c_status.runingtask == 'c' || c_status.runingtask == 'b')
+	{
+		memset(&c_status, 0, sizeof(CollcetStatus));
+		c_status.isend = 1;
+		SetCollectorStatus(&c_status);
+	}
 	return 0;
 }
 
@@ -1171,8 +1630,10 @@ int AddTashE(struct task_e *e)
  * */
 void DeleNearTaskE(void)
 {
+	pthread_mutex_lock(&_Collect.taske.taske_mutex);
 	if(_Collect.taske.num <= 0)
 	{
+		pthread_mutex_unlock(&_Collect.taske.taske_mutex);
 		return;
 	}
 	struct task_e *e_p;
@@ -1186,6 +1647,8 @@ void DeleNearTaskE(void)
 		free(e_p);
 		e_p = NULL;
 	}
+	pthread_mutex_unlock(&_Collect.taske.taske_mutex);
 }
 
 
+/****************************************************************************************************/

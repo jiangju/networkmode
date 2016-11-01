@@ -38,8 +38,10 @@
 
 #define TIME_FRA_LEN	6		//时间格式长度
 
-#define	AMM_ADDR_LEN	6//电表地址长度
-#define AMM_MAX_NUM		2040//电表最大数量
+#define	AMM_ADDR_LEN	6		//电表地址长度
+#define AMM_MAX_NUM		2040	//电表最大数量
+
+#define TER_UNDER_AMM_MAX		192	//终端下电表最大个数
 
 typedef struct
 {
@@ -88,11 +90,18 @@ typedef struct
 
 typedef struct
 {
+	unsigned char flag;	//0x44 有下发过台账
+	unsigned char CS;	//CS校验
+}tpIsStand;
+
+typedef struct
+{
 	tpAFN05_1 	AFN05_1;
 	tpAFN05_2	AFN05_2;
 	tpAFN05_4	AFN05_4;
 	tpIpPort	IpPort;
 	tpCyFlag	cyFlag;
+	tpIsStand 	StandFlag;	//是否有台账下发
 }tpConfiguration;	//系统配置参数
 
 typedef struct
@@ -101,7 +110,8 @@ typedef struct
 	tpAFN05_2		AFN05_2;
 	tpAFN05_4		AFN05_4;
 	tpIpPort		IpPort;
-	unsigned char 	CyFlag;	//抄收成功的标志
+	unsigned char 	CyFlag;		//抄收成功的标志
+	unsigned char 	StandFlag;	//是否有台账下发
 }RunPara;	//运行参数
 
 #ifdef	_SYS_PARA_C_

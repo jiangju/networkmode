@@ -272,7 +272,7 @@ int UpdateTerSTime(TerSocket * ter_s)
 	//Ê±
 	ter_s->last_t[3] = HexToBcd(t_tm->tm_hour);
 	//·Ö
-	ter_s->last_t[4] = HexToBcd(t_tm->tm_mday);
+	ter_s->last_t[4] = HexToBcd(t_tm->tm_min);
 	//Ãë
 	ter_s->last_t[5] = HexToBcd(t_tm->tm_sec);
 

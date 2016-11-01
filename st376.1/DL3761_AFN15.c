@@ -74,7 +74,7 @@ void DL3761_AFN15_07(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 			break;
 		}
 	}
-	if(0 > res)
+	if(0 >= res)
 	{
 		//数据标识
 		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
@@ -111,11 +111,11 @@ void DL3761_AFN15_20(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 
 	if(0 == flag)
 	{	//关闭
-		open_log_3762();
+		close_log_3762();
 	}
 	else
 	{	//打开
-		close_log_3762();
+		open_log_3762();
 	}
 	//数据标识
 	snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
@@ -189,5 +189,5 @@ void DL3761_AFN15_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		default:
 			break;
 	}
-
+	memset(rvframe3761, 0,  sizeof(tpFrame376_1));
 }

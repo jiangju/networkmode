@@ -9,10 +9,11 @@
 #define NETWORK0_NETWORK0_H_
 
 #include "SysPara.h"
+#include <pthread.h>
 
 #define SOCKET_TICKER	300	//套接字心跳倒计时
 
-#define NETWORK_MAX_CONNCET	600		//socket最大连接数
+#define NETWORK_MAX_CONNCET	600				//socket最大连接数
 #define EVTMAX 	NETWORK_MAX_CONNCET			//epoll 监控发生事件最大数
 #define NETWOEK_R_MAX 	1024				//socket 每次读取最大数量
 

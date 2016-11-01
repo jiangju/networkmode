@@ -49,6 +49,7 @@ typedef enum
 	AFN3761_EXTEND13	= 0x13,	//扩展AFN=13
 	AFN3761_EXTEND15	= 0x15,	//扩展AFN=15
 	AFN3761_EXTEND16	= 0x16,	//扩展AFN=16
+	AFN3761_EXTEND17	= 0x17,
 }enAFN3761;					   		//AFN类型
 
 typedef struct

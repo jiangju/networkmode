@@ -14,8 +14,8 @@
 #define TASK_MAX_LEN	300		//采集任务缓存最大长度
 #define TASK_MAX_NUM	100		//任务缓存中最大任务数量
 
-#define NET_COLLECT_TIMER 6		//网络抄表等待回复时间
-#define AFN14_01_TIMER	  15	//请求抄读数据内容等待回复时间
+#define NET_COLLECT_TIMER 4		//网络抄表等待回复时间
+#define AFN14_01_TIMER	  6	//请求抄读数据内容等待回复时间
 
 #define EXE_COLLECT1	  6		//广播下发任务后，需延时6秒(真实事件为3-4秒)
 
@@ -92,14 +92,9 @@ typedef struct
 	unsigned char 	dadt[DADT_LEN];		//数据标识
 	unsigned char 	buf[TASK_MAX_LEN];	//任务数据
 	int				len;				//任务数据长度
-	int				key;//开关
+	int				key;				//开关
+	pthread_mutex_t taskc_mutex;		//锁
 }CollcetTaskC;	//周期抄表任务
-
-typedef struct
-{
-	int	index;	//台账索引
-	int key;	//开关
-}CollcetTaskD;
 
 struct task_e
 {
@@ -120,51 +115,100 @@ typedef struct
 
 typedef struct
 {
-	CollcetTaskA taska;
-	CollcetTaskB taskb;
-	CollcetTaskC taskc;
-//	CollcetTaskD taskd;
-	CollcetTaskE taske;
-	unsigned char runingtask;			//正在执行的任务类型 'a' 'b' 'c' 'd' 'e'
+	unsigned char runingtask;
 	unsigned char amm[AMM_ADDR_LEN];	//表号		 (充值任务的表号不在此判断)
 	unsigned char dadt[DADT_LEN];		//数据标识        (充值任务的数据标识不在此判断)
 	unsigned char timer;				//抄表超时判断 (充值任务的超时不在此判断)
-
-	unsigned char b_isend;				//该数据标识抄收是否结束
-	unsigned char c_isend;				//该数据标识抄收是否结束
-//	unsigned char d_isend;				//该数据标识抄收是否结束
-	unsigned char e_isend;				//该数据标识抄收是否结束
+	unsigned char isend;				//该数据标识抄收是否结束
 	unsigned char conut;				//抄表失败次数 (充值终端的抄表失败次数不在此判断)
+}CollcetStatus;
+
+typedef struct
+{
+	CollcetTaskA taska;
+	CollcetTaskB taskb;
+	CollcetTaskC taskc;
+	CollcetTaskE taske;
+//	unsigned char runingtask;			//正在执行的任务类型 'a' 'b' 'c' 'd' 'e'
+	pthread_mutex_t mutex;				//锁
+//	unsigned char amm[AMM_ADDR_LEN];	//表号		 (充值任务的表号不在此判断)
+//	unsigned char dadt[DADT_LEN];		//数据标识        (充值任务的数据标识不在此判断)
+//	unsigned char timer;				//抄表超时判断 (充值任务的超时不在此判断)
+//
+//	unsigned char b_isend;				//该数据标识抄收是否结束
+//	unsigned char c_isend;				//该数据标识抄收是否结束
+//	unsigned char e_isend;				//该数据标识抄收是否结束
+//	unsigned char conut;				//抄表失败次数 (充值终端的抄表失败次数不在此判断)
+	CollcetStatus status;				//抄表器状态
 }Collcet;
+
+typedef struct
+{
+	pthread_mutex_t mutex;				//锁
+	volatile int	timer;				//广播全局倒计时（只有倒计时结束后，才能继续对终端进行数据下发）
+	volatile int	allow_num;			//广播许可次数
+	volatile int 	flush_allow_timer;	//刷新许可倒计时(在该倒计时时间段内，最大广播次数为allow_num)
+}BoradcastContorl;						//广播管理器(当执行完广播后需等待n秒后才能对终端进行数据下发)
 
 #ifdef	_COOLECT_C_
 Collcet _Collect;	//抄表器
+BoradcastContorl _BoradContorl;
 #endif
-
+/*********************************Collector**************************************/
 void CollectorInit(void);
 void TaskcReset(void);
 void *Collector(void *arg);
-void CollectTaskB(void);
-void CollectTaskC(void);
-void CollectTaskE(void);
-void TaskACollectInit(void);
+void GetCollectorStatus(CollcetStatus *status);
+void SetCollectorStatus(CollcetStatus *status);
+unsigned char GetCollectorStatusTimer(void);
+void CollectorStatusTimerTicker(void);
+void BoradcastContorlInit(void);
+int GetBoradcastContorlTimer(void);
+void SetBoradcastContorlTimer(int t);
+void BoradcastContorlTimerTicker(void);
+int GetBoradcastContorlAllowTimer(void);
+void SetBoradcastContorlAllowTimer(int t);
+void BoradcastContorlAllowTimerTicker(void);
+int GetBoradcastContorlAllowNum(void);
+void SetBoradcastContorlAllowNum(int num);
 
+/************************************A***************************************/
+void TaskACollectInit(void);
 void *TaskATimer(void *arg);
 void *CollectTaskA(void *arg);
 struct task_a_node *SeekTaskANode0(unsigned char *ter);
 struct task_a_node *SeekTaskANode1(unsigned char *amm);
 int AddTaskA(unsigned char *amm, unsigned char *dadt, unsigned char *buf, int len, unsigned char *ter);
 int DeleTaskA(unsigned char *amm, unsigned char flag);
+int TaskaIsEmpty(void);
+void SetCollectorStatus(CollcetStatus *status);
+void SetTaskaKey(int key);
+int GetTaskaKey(void);
 
+/*************************************B*******************************************/
+void CollectTaskB(void);
 int AddTashB(struct task_b *b);
 void DeleNearTaskB(void);
+int GetTaskbNum(void);
+
+/************************************C*************************************************/
+void CollectTaskC(void);
+int GetTaskcKey(void);
+int GetRequestTimer(void);
+void RequestTimerTicker(void);
+
+/**************************************E*************************************************/
+int GetTaskeNum(void);
 int AddTashE(struct task_e *e);
 void DeleNearTaskE(void);
+void CollectTaskE(void);
+
 int ExecuteCollect0(unsigned char *amm, unsigned char *inbuf, int len);
 int ExecuteCollect1(unsigned char *amm, unsigned char *inbuf, int len);
 
 #ifndef _COOLECT_C_
 extern Collcet _Collect;	//抄表器
+extern BoradcastContorl _BoradContorl;
 #endif
 
 #endif /* COLLECT_COLLECT_H_ */

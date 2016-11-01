@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include "DL3762_AFN02.h"
 #include "DL3762_AFN13.h"
-
+//#include <sys/time.h>
 /*
  * 函数功能:构造透明转发格式帧
  * 参数:	ter		终端地址
@@ -199,7 +199,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 	tpFrame376_1 snframe3761;
 	tp3761Buffer ttpbuffer;
 
-	//StandNode *p;
+	CollcetStatus c_status;
 	StandNode node;
 	struct topup_node *pp;
 	unsigned char ter[4] = {0};
@@ -213,6 +213,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 		index++;
 		len = rvframe3761->Frame376_1App.AppBuf[index + 1] * 256 + rvframe3761->Frame376_1App.AppBuf[index];
 		index += 2;
+
 		memcpy(buf, (rvframe3761->Frame376_1App.AppBuf + index), len);
 		if(0 == ProtoAnaly645BufFromCycBuf(buf, len, &frame645))
 		{
@@ -257,13 +258,19 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 			}
 
 			//判断充值任务
-			if(_Collect.runingtask == 'a')
+			if(1 == GetTaskaKey())
 			{
 				//根据表号获取节点
 				struct task_a_node *node_p = SeekTaskANode1(frame645.Address);
-				if(1 == CompareUcharArray(node_p->task_status.dadt, frame645.Datas, 4))
+				if(NULL == node_p)
+					return;
+				if(1 == CompareUcharArray(node_p->task_status.dadt, frame645.Datas, 4) || (frame645.CtlField & 0x40) != 0)
 				{
 					Create3761AFN10_01(node_p->task_status.top_ter, buf, len,  0, &snframe3761);
+				}
+				else
+				{
+					return;
 				}
 				//将3761格式数据转换为可发送二进制数据
 				DL3761_Protocol_LinkPack(&snframe3761, &ttpbuffer);
@@ -283,13 +290,17 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 				}
 				pthread_mutex_unlock(&(pp->write_mutex));
 				pthread_mutex_unlock(&(topup_node_mutex));
+//				struct timeval tv;
+//				gettimeofday(&tv, NULL);
+//				printf("send top up :  %ld;  ms:  %ld\n",tv.tv_sec, (tv.tv_usec / 1000));
 				//任务结束
 				DeleTaskA(node_p->amm, 0);
 				return;
 			}
 
+			GetCollectorStatus(&c_status);
 			//比较表号  实时任务  周期任务 需要比较表号
-			if(1 == CompareUcharArray(_Collect.amm, frame645.Address, AMM_ADDR_LEN))
+			if(1 == CompareUcharArray(c_status.amm, frame645.Address, AMM_ADDR_LEN))
 			{
 				if(0x02 == node.type)
 				{
@@ -297,7 +308,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 					{
 						is_true = 0;
 					}
-					else if(1 == CompareUcharArray(_Collect.dadt, frame645.Datas, 4))
+					else if(1 == CompareUcharArray(c_status.dadt, frame645.Datas, 4))
 					{
 						is_true = 0;
 					}
@@ -308,7 +319,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 					{
 						is_true = 0;
 					}
-					else if(1 == CompareUcharArray(_Collect.dadt, frame645.Datas, 2))	//正常帧  比较数据标识
+					else if(1 == CompareUcharArray(c_status.dadt, frame645.Datas, 2))	//正常帧  比较数据标识
 					{
 						is_true = 0;
 					}
@@ -316,28 +327,29 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 
 				if(0 == is_true)
 				{
-					switch(_Collect.runingtask)
+					switch(c_status.runingtask)
 					{
 						case 'a':
 
 							break;
 						case 'b':
 							//构造376.2 AFN13上报数据
-							Create3762AFN13_01(_Collect.amm, _Collect.taskb.next->type, buf, len, &snframe3762);
+							Create3762AFN13_01(c_status.amm, _Collect.taskb.next->type, buf, len, &snframe3762);
 							if(0 == DL3762_Protocol_LinkPack(&snframe3762, &tpbuffer))
 							{
 								pthread_mutex_lock(&writelock);
 								UsartSend(Usart0Fd, tpbuffer.Data, tpbuffer.Len);
 								pthread_mutex_unlock(&writelock);
-								_Collect.b_isend = 1;
-								memset(_Collect.amm, 0, AMM_ADDR_LEN);
-								memset(_Collect.dadt, 0, DADT_LEN);
-								_Collect.conut = 0;
-//								_Collect.flag = 0;
-								_Collect.runingtask = 0;
-								pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
+
+								c_status.isend = 1;
+								memset(c_status.amm, 0, AMM_ADDR_LEN);
+								memset(c_status.dadt, 0, DADT_LEN);
+								c_status.conut = 0;
+								c_status.runingtask = 0;
+								SetCollectorStatus(&c_status);
+//								pthread_mutex_lock(&_Collect.taskb.taskb_mutex);
 								DeleNearTaskB();
-								pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
+//								pthread_mutex_unlock(&_Collect.taskb.taskb_mutex);
 							}
 							break;
 						case 'c':
@@ -348,43 +360,45 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 								pthread_mutex_lock(&writelock);
 								UsartSend(Usart0Fd, tpbuffer.Data, tpbuffer.Len);
 								pthread_mutex_unlock(&writelock);
-								_Collect.c_isend = 1;
-								memset(_Collect.amm, 0, AMM_ADDR_LEN);
-								memset(_Collect.dadt, 0, DADT_LEN);
-								_Collect.conut = 0;
+								c_status.isend = 1;
+								memset(c_status.amm, 0, AMM_ADDR_LEN);
+								memset(c_status.dadt, 0, DADT_LEN);
+								c_status.conut = 0;
 //								_Collect.flag = 0;
-								_Collect.taskc.isok = 0;
-								_Collect.runingtask = 0;
+//								_Collect.taskc.isok = 0;
+								c_status.runingtask = 0;
+								SetCollectorStatus(&c_status);
 							}
 							break;
 						case 'd':
 							break;
 						case 'e':
 							//构造376.2 AFN02上报数据
-							Create3762AFN02_01(_Collect.amm, _Collect.taske.next->type, buf, len, &snframe3762);
+							Create3762AFN02_01(c_status.amm, _Collect.taske.next->type, buf, len, &snframe3762);
 							if(0 == DL3762_Protocol_LinkPack(&snframe3762, &tpbuffer))
 							{
 								pthread_mutex_lock(&writelock);
 								UsartSend(Usart0Fd, tpbuffer.Data, tpbuffer.Len);
 								pthread_mutex_unlock(&writelock);
-								_Collect.e_isend = 1;
-								memset(_Collect.amm, 0, AMM_ADDR_LEN);
-								memset(_Collect.dadt, 0, DADT_LEN);
-								_Collect.conut = 0;
+								c_status.isend = 1;
+								memset(c_status.amm, 0, AMM_ADDR_LEN);
+								memset(c_status.dadt, 0, DADT_LEN);
+								c_status.conut = 0;
 //								_Collect.flag = 0;
-								_Collect.runingtask = 0;
-								pthread_mutex_lock(&_Collect.taske.taske_mutex);
+								c_status.runingtask = 0;
+								SetCollectorStatus(&c_status);
+//								pthread_mutex_lock(&_Collect.taske.taske_mutex);
 								DeleNearTaskE();
-								pthread_mutex_unlock(&_Collect.taske.taske_mutex);
+//								pthread_mutex_unlock(&_Collect.taske.taske_mutex);
 							}
 							break;
 					}
 
-					//抄收到充值终端需要的数据时，广播给所有在线的充值终端
-					if(0 == top_jude_dadt(_Collect.dadt))
-					{
-						broadcast_buf_topup(buf, len);
-					}
+//					//抄收到充值终端需要的数据时，广播给所有在线的充值终端
+//					if(0 == top_jude_dadt(c_status.dadt))
+//					{
+//						broadcast_buf_topup(buf, len);
+//					}
 				}
 			}
 		}
@@ -404,8 +418,56 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 			top_ter[1] = rvframe3761->Frame376_1Link.AddrField.WardCode[1];
 			top_ter[2] = rvframe3761->Frame376_1Link.AddrField.Addr[0];
 			top_ter[3] = rvframe3761->Frame376_1Link.AddrField.Addr[1];
-			if(0 != AddTaskA(frame645.Address, frame645.Datas, buf, len, top_ter))
+
+			ret = AddTaskA(frame645.Address, frame645.Datas, buf, len, top_ter);
+			if(0 != ret)
 			{
+				tpFrame645 f645;
+				Buff645 b645;
+
+				memcpy(f645.Address, frame645.Address, AMM_ADDR_LEN);
+				f645.CtlField = 0xC1;
+
+				switch (ret)
+				{
+					case -1:
+						f645.Datas[0] = 0xFD;
+						break;
+					case -2:
+						f645.Datas[0] = 0xFF;
+						break;
+					case -3:
+						f645.Datas[0] = 0xFC;
+						break;
+					default:
+						break;
+				}
+
+				f645.Length = 1;
+
+				if(0 == Create645From(&f645, &b645))
+				{
+					Create3761AFN10_01(top_ter, b645.buf, b645.len, 0, &snframe3761);
+					//将3761格式数据转换为可发送二进制数据
+					DL3761_Protocol_LinkPack(&snframe3761, &ttpbuffer);
+					pthread_mutex_lock(&(topup_node_mutex));
+					pp = AccordTerFind(top_ter);
+					pthread_mutex_lock(&(pp->write_mutex));
+					while(1)
+					{
+						ret = write(pp->s, ttpbuffer.Data, ttpbuffer.Len);
+						if(ret < 0)
+						{
+							break;
+						}
+						ttpbuffer.Len -= ret;
+						if(0 == ttpbuffer.Len)
+							break;
+					}
+					pthread_mutex_unlock(&(pp->write_mutex));
+					pthread_mutex_unlock(&(topup_node_mutex));
+				}
+
 				printf("add top up task err\n");
 			}
 		}
@@ -437,4 +499,5 @@ void DL3761_AFN10_Analy(tpFrame376_1 *rvframe3761)
 		default:
 			break;
 	}
+	memset(rvframe3761, 0, sizeof(tpFrame376_1));
 }

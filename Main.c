@@ -67,6 +67,9 @@ void SetTolerantRunPara(void)
 
 	//抄收成功的成功标志
 	_RunPara.CyFlag = 0xFE;
+
+	//无台账下发
+	_RunPara.StandFlag = 0x55;
 }
 
 /*
@@ -304,6 +307,40 @@ void StartUpdataRunParaCyFlag(int fd)
 }
 
 /*
+ * 函数功能:开机后更新运行参数的台账下发标准字
+ * 参数:	fd	配置文件的文件描述符
+ * */
+void StartUpdataRunParaIsStand(int fd)
+{
+	tpIsStand stand;
+	int len = 0;
+	len = offsetof(tpConfiguration, StandFlag);
+	if(0 == ReadFile(fd, len, (void *)(&stand), sizeof(tpIsStand)))
+	{
+		len = offsetof(tpIsStand, CS);
+		if(stand.CS != Func_CS((void*)&stand, len))
+		{
+			//抄收成功的成功标志
+			_RunPara.StandFlag = 0xFE;
+
+			memcpy(&stand.flag, &_RunPara.StandFlag, 1);
+			stand.CS = Func_CS((void*)&stand, len);
+			len = offsetof(tpConfiguration, StandFlag);
+			WriteFile(fd, len, (void*)&stand, sizeof(tpIsStand));
+		}
+		else
+		{
+			memcpy(&_RunPara.StandFlag, &stand.flag, 1);
+		}
+	}
+	else
+	{
+		//抄收成功的成功标志
+		_RunPara.StandFlag = 0xFE;
+	}
+}
+
+/*
  * 函数功能:参数初始化
  * */
 void RunParaInit(void)
@@ -344,6 +381,9 @@ void RunParaInit(void)
 
 			//抄表成功的标志
 			StartUpdataRunParaCyFlag(fd);
+
+			//是否有下发台账标志
+			StartUpdataRunParaIsStand(fd);
 
 			close(fd);
 		}

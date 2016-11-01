@@ -8,7 +8,11 @@
 #include "DL376_1.h"
 #include "Response_AFN02.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include "SeekAmm.h"
+#include "StandBook.h"
+#include "NetWork1.h"
 /*
  * 函数功能:响应登录 心跳
  * 参数:	rvframe3761 待解析的376.1数据
@@ -17,6 +21,37 @@
  * */
 void ResponseAFN02_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 {
+	/**********************************登录后检测是否需要搜表***************************/
+	unsigned char ter[4] = {0};
+	struct seek_amm_task task;
+	if(rvframe3761->Frame376_1App.AppBuf[2] == 0x04 && rvframe3761->Frame376_1App.AppBuf[3] == 0x00)
+	{
+		ter[0] = rvframe3761->Frame376_1Link.AddrField.WardCode[0];
+		ter[1] = rvframe3761->Frame376_1Link.AddrField.WardCode[1];
+		ter[2] = rvframe3761->Frame376_1Link.AddrField.Addr[0];
+		ter[3] = rvframe3761->Frame376_1Link.AddrField.Addr[1];
+
+		if(NULL == AccordTerFind(ter))
+		{
+			if(0 == StatTerAmmNum(ter))
+			{
+				if(-1 == find_seek_amm_task(ter, &task))
+				{
+					struct seek_amm_task *temp = (struct seek_amm_task *)malloc(sizeof(struct seek_amm_task));
+					if(temp != NULL)
+					{
+						temp->flag = 0xFF;
+						temp->next = NULL;
+						memcpy(temp->ter, ter, 4);
+						add_seek_amm_task(temp);
+					}
+				}
+			}
+		}
+	}
+
+
+	/************************************************************************/
 	if(NULL == snframe3761)
 			return;
 	int index = 0;

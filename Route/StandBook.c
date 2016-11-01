@@ -83,10 +83,13 @@ int SeekAmmAddr(unsigned char *addr, unsigned char len)
 	int high = _StandNodeNum - 1;
 	int mid = 0;
 	int ret = 0;
-	if(0 == _StandNodeNum)	//没有节点
-		return -1;
-
 	pthread_mutex_lock(&StandMutex);
+	if(0 == _StandNodeNum)	//没有节点
+	{
+		pthread_mutex_unlock(&StandMutex);
+		return -1;
+	}
+
 	while(low <= high)
 	{
 		mid = (low + high) / 2;
@@ -116,6 +119,10 @@ int SeekAmmAddr(unsigned char *addr, unsigned char len)
  * */
 int AddNodeStand(StandNode *node)
 {
+	if(node->num >= AMM_MAX_NUM)
+			return -1;
+
+	pthread_mutex_lock(&StandMutex);
 	StandNode *p = NULL;
 	int ret = 0;
 	int low = 0;
@@ -123,9 +130,6 @@ int AddNodeStand(StandNode *node)
 	int mid = 0;
 	StandNode *temp[AMM_MAX_NUM] = {0};
 
-	if(node->num >= AMM_MAX_NUM)
-		return -1;
-	pthread_mutex_lock(&StandMutex);
 	//本次添加为第一次添加
 	if(0 == _StandNodeNum)
 	{
@@ -349,7 +353,9 @@ int AlterRouteStand(unsigned char *amm, unsigned char *ter)
 	int index = 0;
 	index = SeekAmmAddr(amm, AMM_ADDR_LEN);
 	if(-1 == index)
+	{
 		return -1;
+	}
 	pthread_mutex_lock(&StandMutex);
 	memcpy(_SortNode[index]->Ter, ter, TER_ADDR_LEN);
 	pthread_mutex_unlock(&StandMutex);
@@ -428,13 +434,15 @@ int UpdateNodeDate(int index)
  * */
 int GetStandNode(int index, StandNode *node)
 {
+	pthread_mutex_lock(&StandMutex);
 	if(index >= _StandNodeNum || index < 0)
 	{
+		pthread_mutex_unlock(&StandMutex);
 		return -1;
 	}
 
 	memset(node, 0, sizeof(StandNode));
-	pthread_mutex_lock(&StandMutex);
+
 	memcpy(node, _SortNode[index], sizeof(StandNode));
 	pthread_mutex_unlock(&StandMutex);
 
@@ -449,11 +457,13 @@ int GetStandNode(int index, StandNode *node)
  * */
 int UpdateStandNode(int index, StandNode *node)
 {
+	pthread_mutex_lock(&StandMutex);
 	if(index >= _StandNodeNum || index < 0)
 	{
+		pthread_mutex_unlock(&StandMutex);
 		return -1;
 	}
-	pthread_mutex_lock(&StandMutex);
+
 	memcpy(_SortNode[index], node, sizeof(StandNode));
 	pthread_mutex_unlock(&StandMutex);
 	return 0;

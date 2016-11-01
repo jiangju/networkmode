@@ -7,10 +7,11 @@
 #include <string.h>
 #include "Response_AFN02.h"
 #include "Response_AFN0E.h"
+#include "DL3761_AFN05.h"
 #include "DL3761_AFN10.h"
 #include "DL3761_AFN15.h"
 #include "DL3761_AFN16.h"
-
+#include "DL3761_AFN17.h"
 /*
  *函数功能:将接受的376.1数据转换为定义的376.1格式
  *参数:	inBuffer		待转换的数据缓存
@@ -536,7 +537,7 @@ int ProtoAnaly_Get376_1BufFromCycBuf(unsigned char *inbuf, unsigned short maxlen
  * */
 void DL3761_Process_Response(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 {
-	//printf("rev 376.1 ok  AFN  %x\n",rvframe3761->Frame376_1App.AFN);
+	printf("rev 376.1 ok  AFN  %x\n",rvframe3761->Frame376_1App.AFN);
 	switch(rvframe3761->Frame376_1App.AFN)
 	{
 		case AFN3761_AFFI:
@@ -547,6 +548,9 @@ void DL3761_Process_Response(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe376
 		case AFN3761_RELAY:
 			break;
 		case AFN3761_SETPARA:
+			break;
+		case AFN3761_CTRL:
+			DL3761_AFN05_Analy(rvframe3761, snframe3761);
 			break;
 		case AFN3761_CAPASS:
 			break;
@@ -575,6 +579,9 @@ void DL3761_Process_Response(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe376
 			break;
 		case AFN3761_EXTEND16:
 			DL3761_AFN16_Analy(rvframe3761, snframe3761);
+			break;
+		case AFN3761_EXTEND17:
+			DL3761_AFN17_Analy(rvframe3761, snframe3761);
 			break;
 		default :
 			memset(rvframe3761, 0, sizeof(tpFrame376_1));
