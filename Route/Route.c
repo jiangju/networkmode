@@ -111,7 +111,7 @@ TerSocket *AddRoute(unsigned char *ter, int s, int ticker, void *addr)
 		_FristNode = (TerSocket*)malloc(sizeof(TerSocket));
 		if(NULL == _FristNode)
 		{
-			printf("route.c 87\n");
+//			printf("route.c 87\n");
 			return NULL;
 		}
 		memcpy(_FristNode->Ter, ter, TER_ADDR_LEN);

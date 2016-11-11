@@ -84,16 +84,21 @@ int seek_amm_synchroniza(unsigned char *amm, unsigned char *ter)
 /*
  * 函数功能:搜表任务主动上报处理
  * */
-void DL3761_AFN17_01(tpFrame376_1 *rvframe3761)
+void DL3761_AFN17_01(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 {
 	unsigned short in_index = 4;
+	unsigned short outdex = 0;
 	unsigned char num = 0;
 	int i = 0;
+	int res = 0;
 	struct seek_amm_result *result;
 
 	result = (struct seek_amm_result *)malloc(sizeof(struct seek_amm_result));
 	if(NULL == result)
-		return;
+	{
+		res = -1;
+		goto fntable;
+	}
 	memset(result, 0, sizeof(struct seek_amm_result));
 
 	result->ter[0] = rvframe3761->Frame376_1Link.AddrField.WardCode[0];
@@ -101,12 +106,17 @@ void DL3761_AFN17_01(tpFrame376_1 *rvframe3761)
 	result->ter[2] = rvframe3761->Frame376_1Link.AddrField.Addr[0];
 	result->ter[3] = rvframe3761->Frame376_1Link.AddrField.Addr[1];
 
+	dele_seek_amm_task(result->ter);
+
 	//更新主动台账
 	num = rvframe3761->Frame376_1App.AppBuf[in_index++];	//获取个数
 	result->num = num;
 	result->index = initiative_stand_min_not_using_index();
 	if(result->index < 0)
-		return;
+	{
+		res = -1;
+		goto fntable;
+	}
 
 	for(i = 0; i < num; i++)
 	{
@@ -118,8 +128,36 @@ void DL3761_AFN17_01(tpFrame376_1 *rvframe3761)
 
 	if(0 == add_seek_amm_result(result))
 	{
-		write_seek_amm_result(result);
+		res = write_seek_amm_result(result);
 	}
+	else
+	{
+		res = -1;
+	}
+
+fntable:
+	if(0 > res)
+	{
+		//数据标识
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x02;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+	}
+	else
+	{
+		//数据标识
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x01;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+	}
+
+	//应用层帧长---不包括AFN/SEQ
+	snframe3761->Frame376_1App.Len = outdex;
+
+	memset(rvframe3761, 0, sizeof(tpFrame376_1));
+	snframe3761->IsHaving = true;
 }
 
 /*
@@ -136,7 +174,7 @@ void DL3761_AFN17_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 	//结束符
 	snframe3761->Frame376_1Link.EndChar = 0x16;
 	//控制域
-	snframe3761->Frame376_1Link.CtlField.DIR = 1;	//上行
+	snframe3761->Frame376_1Link.CtlField.DIR = 0;	//下行
 	snframe3761->Frame376_1Link.CtlField.PRM = 0;	//从动站
 	snframe3761->Frame376_1Link.CtlField.FCV = 0;	//FCB位无效
 	snframe3761->Frame376_1Link.CtlField.FCB = 0;
@@ -148,8 +186,9 @@ void DL3761_AFN17_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 			rvframe3761->Frame376_1Link.AddrField.Addr, 2);
 	snframe3761->Frame376_1Link.AddrField.MSA = 0;
 
+	/*************************************应用层********************************/
 	//功能码
-	snframe3761->Frame376_1App.AFN = AFN3761_EXTEND16;
+	snframe3761->Frame376_1App.AFN = AFN3761_AFFI;
 	//请求确认标志
 	snframe3761->Frame376_1App.SEQ.CON = 0;	//不需要确认
 	//帧类型
@@ -178,7 +217,7 @@ void DL3761_AFN17_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 	switch(Fn)
 	{
 		case 1:
-			DL3761_AFN17_01(rvframe3761);
+			DL3761_AFN17_01(rvframe3761, snframe3761);
 			break;
 		default:
 			break;

@@ -219,6 +219,8 @@ int get_usb_dname(char *dname)
  * */
 void *pthread_usb(void *arg)
 {
+	int usb_flag = 0;	//usb 插入标志
+
 	//申请看门狗
 	int wdt_id = *(int *)arg;
 	//
@@ -250,6 +252,7 @@ void *pthread_usb(void *arg)
 			//获取U盘文件名
 			if(0 == get_usb_dname(dname))
 			{
+				usb_flag = 1;
 				sprintf(dir1, "/media/%s/log",dname);
 				sprintf(dir2, "/media/%s/update",dname);
 				if(0 == access(dir1, F_OK))
@@ -303,10 +306,19 @@ void *pthread_usb(void *arg)
 					}
 				}
 			}
-
-			while(0 == is_inserted_usb())	//等待U盘拔出
+			else
 			{
+				usb_flag = 0;
+			}
+
+			while(0 == is_inserted_usb() && usb_flag == 1)	//等待U盘拔出
+			{
+				if(0 != access(dir2, F_OK) && 0 != access(dir1, F_OK))
+				{
+					usb_flag = 0;
+				}
 				sleep(1);
+				printf("ssssssssss\n");
 				feed_watch_dog(wdt_id);	//喂狗
 			}
 		}

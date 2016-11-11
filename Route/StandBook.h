@@ -17,9 +17,7 @@ typedef struct stand_node
 	unsigned char 	Ter[TER_ADDR_LEN];		//终端地址
 	unsigned short 	num;					//存储序号
 	unsigned char 	cyFlag;					//抄表标志  (当等于运行参数中的抄表成功的标志时，抄表成功)
-	unsigned char 	last_t[TIME_FRA_LEN];	//最后一次通信时间 （这个内容最好不要添加在这个结构体里，因为文件中不需要时间数据，
-											//只是内存中需要时间数据。最好将文件中存储的数据格式和内存中存储的数据格式使用关联关系，不要
-											//将内存中的数据格式和文件中的数据格式做成同一个格式，这里待修改！！！）
+	unsigned char 	last_t[TIME_FRA_LEN];	//最后一次通信时间
 }StandNode;	//台账节点信息	被动台账  主站下发的台站
 
 #ifdef	_STAND_BOOK_C_

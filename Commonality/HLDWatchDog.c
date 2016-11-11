@@ -145,7 +145,7 @@ void *HLDWatchDog(void *arg)
 		pthread_mutex_unlock(&wdt_mu);
 		if(res == 1)
 		{
-			printf("time out i = %d\n",i);
+			printf("*****************time out i = %d\n",i);
 			break;
 		}
 		write(fd, "\0", 1);	//Œππ∑ŒÔ¿Ìπ∑

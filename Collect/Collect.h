@@ -38,7 +38,7 @@ struct task_a_status	//任务状态
 	unsigned char is_end;				//任务是否结束	0结束  1任务正在进行
 };
 
-#define TASKA_NODE_LIVE_TIMER	60		//节点生存倒计时 1min
+#define TASKA_NODE_LIVE_TIMER	60 * 5		//节点生存倒计时 1min
 #define TASKA_TIMEOUT			4		//充值任务 超时时间 4s
 
 struct task_a_node						//充值任务的任务队列中的节点(以任务电表的终端地址为节点)
@@ -62,8 +62,8 @@ typedef struct
 	pthread_cond_t need_assigned;	//有终端需要分配给线程  条件变量
 	pthread_cond_t node_not_empty;	//节点不为空条件变量
 
-	struct task_a_node *node_head;	//任务节点队列的头节点
-	struct task_a_node *node_tail;	//任务节点队列的尾节点
+	struct task_a_node *node_head;	//任务节点队列的第一个节点
+	struct task_a_node *node_tail;	//任务节点队列的最后一个节点
 }CollcetTaskA;	//充值终端任务
 
 struct task_b

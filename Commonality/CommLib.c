@@ -297,7 +297,7 @@ unsigned short HLDCrc16(unsigned char *puchMsg, unsigned short usDataLen, unsign
  * */
 int get_file_crc(char *fname, unsigned short *crc)
 {
-	printf("fname : %s\n",fname);
+//	printf("fname : %s\n",fname);
 
 	FILE *fp = NULL;
 	fp = fopen(fname, "r");
@@ -320,7 +320,7 @@ int get_file_crc(char *fname, unsigned short *crc)
 			break;
 	}
 	*crc = temp;
-	printf("*crc=  %x\n",*crc);
+//	printf("*crc=  %x\n",*crc);
 	fclose(fp);
 	return 0;
 }

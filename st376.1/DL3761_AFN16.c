@@ -262,7 +262,7 @@ void DL3761_AFN16_11(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 
 	//获取待查询终端地址
 	memcpy(ter, (rvframe3761->Frame376_1App.AppBuf + in_index), TER_ADDR_LEN);
-	printf("ter : %02x %02x %02x %02x\n",ter[0],ter[1],ter[2],ter[3]);
+//	printf("ter : %02x %02x %02x %02x\n",ter[0],ter[1],ter[2],ter[3]);
 
 	//查询终端是否在线
 	pthread_mutex_lock(&(route_mutex));
@@ -466,6 +466,57 @@ void DL3761_AFN16_14(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		snframe3761->Frame376_1App.AppBuf[out_inidex++] = 0;
 	close(_cfg3762_fd);
 	pthread_mutex_unlock(&_log_3762_cfg_mutex);
+
+	//应用层帧长---不包括AFN/SEQ
+	snframe3761->Frame376_1App.Len = out_inidex;
+
+	snframe3761->IsHaving = true;
+}
+
+/*
+ * 函数功能:查询模块当前状态字
+ * */
+void DL3761_AFN16_15(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
+{
+	unsigned short out_inidex = 4;
+
+	//运行状态
+	snframe3761->Frame376_1App.AppBuf[out_inidex++] = 1;
+
+	//搜表状态  是否有终端正在搜表
+	if(0 == seek_amm_task_empty())
+		snframe3761->Frame376_1App.AppBuf[out_inidex++] = 0;
+	else
+		snframe3761->Frame376_1App.AppBuf[out_inidex++] = 1;
+	//
+	pthread_mutex_lock(&_log_3762_cfg_mutex);
+	if(_cfg3762_fd_flag != 0x66)
+	{
+		//打开log配置文件，获取当前记录状态
+		_cfg3762_fd = open(LOG_3762_FILE_CFG, O_RDWR | O_CREAT, 0666);
+		if(_cfg3762_fd < 0)
+		{
+			perror("open log config: ");
+			pthread_exit(NULL);
+		}
+	}
+	//获取配置文件属性
+	lseek(_cfg3762_fd, 0, SEEK_SET);
+	read(_cfg3762_fd, &_log_cfg, sizeof(struct log_config));
+	if(_log_cfg.flag == 0x00)
+		snframe3761->Frame376_1App.AppBuf[out_inidex++] = 1;
+	else
+		snframe3761->Frame376_1App.AppBuf[out_inidex++] = 0;
+	close(_cfg3762_fd);
+	pthread_mutex_unlock(&_log_3762_cfg_mutex);
+
+	//授权状态
+	snframe3761->Frame376_1App.AppBuf[out_inidex++] = 1;
+
+	//应用层帧长---不包括AFN/SEQ
+	snframe3761->Frame376_1App.Len = out_inidex;
+
+	snframe3761->IsHaving = true;
 }
 
 /*
@@ -576,6 +627,90 @@ void DL3761_AFN16_21(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 }
 
 /*
+ * 函数功能:搜表终端数量查询
+ * */
+void DL3761_AFN16_22(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
+{
+	unsigned short out_index = 4;
+	unsigned short num = 0;
+	//获取搜表终端个数
+	num = (unsigned short)get_seek_amm_task_num();
+	//
+	snframe3761->Frame376_1App.AppBuf[out_index++] = num % 256;
+	snframe3761->Frame376_1App.AppBuf[out_index++] = num / 256;
+
+	//应用层帧长---不包括AFN/SEQ
+	snframe3761->Frame376_1App.Len = out_index;
+
+	snframe3761->IsHaving = true;
+}
+
+/*
+ * 函数功能：搜表任务详细查询
+ * */
+void DL3761_AFN16_23(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
+{
+	unsigned short in_index = 4;
+	unsigned short out_index = 4;
+	unsigned short start_num = 0;
+	unsigned short all_num = 0;
+	unsigned char  num = 0;
+	unsigned char  r_num;
+	struct seek_amm_task task;
+	//获取起始序号
+	start_num = rvframe3761->Frame376_1App.AppBuf[in_index] + rvframe3761->Frame376_1App.AppBuf[in_index + 1] * 256;
+	if(start_num == 0)
+		start_num = 1;
+	//获取读取数量
+	num = rvframe3761->Frame376_1App.AppBuf[in_index + 2];
+
+	//计算本次应答数量
+	all_num = (unsigned short)get_seek_amm_task_num();
+	if((num + start_num - 1) > all_num)
+	{
+		if(start_num > all_num)
+		{
+			r_num = 0;
+		}
+		else
+		{
+			r_num = all_num - start_num + 1;
+		}
+	}
+	else
+	{
+		r_num = num;
+	}
+
+	//总数量
+	snframe3761->Frame376_1App.AppBuf[out_index++] = all_num % 256;
+	snframe3761->Frame376_1App.AppBuf[out_index++] = all_num / 256;
+
+	//本次应答数量
+	snframe3761->Frame376_1App.AppBuf[out_index++] = r_num;
+
+	//终端地址
+	while(0 != r_num)
+	{
+		if(0 != get_n_seek_amm_task(start_num, &task))
+		{
+			memset((snframe3761->Frame376_1App.AppBuf + out_index), 0xFF, TER_ADDR_LEN);
+		}
+		else
+		{
+			memcpy((snframe3761->Frame376_1App.AppBuf + out_index), task.ter, TER_ADDR_LEN);
+		}
+		out_index += TER_ADDR_LEN;
+		r_num--;
+	}
+
+	//应用层帧长---不包括AFN/SEQ
+	snframe3761->Frame376_1App.Len = out_index;
+
+	snframe3761->IsHaving = true;
+}
+
+/*
  * 函数功能:查询参数
  * */
 void DL3761_AFN16_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
@@ -657,11 +792,20 @@ void DL3761_AFN16_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		case 14:
 			DL3761_AFN16_14(rvframe3761, snframe3761);
 			break;
+		case 15:
+			DL3761_AFN16_15(rvframe3761, snframe3761);
+			break;
 		case 20:
 			DL3761_AFN16_20(rvframe3761, snframe3761);
 			break;
 		case 21:
 			DL3761_AFN16_21(rvframe3761, snframe3761);
+			break;
+		case 22:
+			DL3761_AFN16_22(rvframe3761, snframe3761);
+			break;
+		case 23:
+			DL3761_AFN16_23(rvframe3761, snframe3761);
 			break;
 		default:
 			break;

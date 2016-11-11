@@ -444,7 +444,7 @@ void *NetWork1(void *arg)
 	//申请看门狗
 	int wdt_id = *(int *)arg;
 	feed_watch_dog(wdt_id);	//喂狗
-	printf("Network1 wdt id %d\n",wdt_id);
+//	printf("Network1 wdt id %d\n",wdt_id);
 
 	//初始化充值终端链接锁(充值终端与套接字对应链表)
 	if(pthread_mutex_init(&(topup_node_mutex), NULL))

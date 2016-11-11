@@ -39,7 +39,7 @@ struct seek_amm_node	//搜表结果的节点
 struct initiative_stand	//主动台账	搜表建立的台账
 {
 	int	nun;						//已收到num个终端回复搜表结果
-	char index[NETWORK_MAX_CONNCET];//主动台账  位置使用情况  0x33未使用  1使用
+	char index[NETWORK_MAX_CONNCET];//主动台账  位置使用情况  0x33未使用  0x1使用
 	pthread_mutex_t mutex;			//主动台账锁
 	struct seek_amm_node *frist;	//第一个搜表结果的节点
 	struct seek_amm_node *last;		//最后一个搜表结果的节点
@@ -50,6 +50,7 @@ struct seek_amm_task	//搜表任务
 	unsigned char ter[TER_ADDR_LEN];	//搜表终端
 	char	flag;						//是否已经下发搜表帧  0x66已经下发
 	int		ticker;						//搜表任务下发后倒计时
+	int 	ticker_ticker;				//任务执行倒计时
 	struct seek_amm_task *next;			//下一个搜表任务
 };
 
@@ -74,7 +75,12 @@ int initiative_stand_file_add_to_memory(void);
 int initiative_stand_min_not_using_index(void);
 void seek_amm_task_queue_init(void);
 int add_seek_amm_task(struct seek_amm_task *task);
+int dele_seek_amm_task(unsigned char *ter);
 int find_seek_amm_task(unsigned char *ter, struct seek_amm_task *task);
 int judge_seek_amm_task(unsigned char *ter);
 void *SeekAmm(void *arg);
+int seek_amm_task_empty(void);
+int get_seek_amm_task_num(void);
+int get_n_seek_amm_task(int n, struct seek_amm_task *task);
+
 #endif /* SEEKAMM_SEEKAMM_H_ */

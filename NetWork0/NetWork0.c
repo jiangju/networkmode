@@ -200,7 +200,7 @@ void *SocketTicker(void *arg)
 				i++;
 			}
 		}
-		printf("socket num  %d\n",i);
+//		printf("socket num  %d\n",i);
 		pthread_mutex_unlock(&(route_mutex));
 	}
 	pthread_exit(NULL);

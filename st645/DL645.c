@@ -30,6 +30,7 @@ int Create645From(tpFrame645 * buf645, Buff645 *outbuf)
 	index += buf645->Length;
 	outbuf->buf[index++] = Func_CS(outbuf->buf, buf645->Length + 10);
 	outbuf->buf[index++] = 0x16;
+	outbuf->len = index;
 	return 0;
 }
 

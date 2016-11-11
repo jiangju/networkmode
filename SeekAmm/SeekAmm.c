@@ -31,9 +31,12 @@ void init_initiative_stand(void)
 	pthread_mutex_init(&_initiative_stand.mutex, NULL);
 	pthread_mutex_init(&_seek_amm_file_mutex, NULL);
 	destroy_initiative_stand();
-	destroy_initiative_stand_file();
+//	destroy_initiative_stand_file();
 	initiative_stand_all_index_init();
 	initiative_stand_file_add_to_memory();
+
+	pthread_t pt;
+	pthread_create(&pt, NULL, SeekAmm, NULL);
 }
 
 /*
@@ -48,7 +51,7 @@ void initiative_stand_index_is_using(unsigned int index, char flag)
 	if(flag == 0)
 		_initiative_stand.index[index] = 0x33;
 	else
-		_initiative_stand.index[index] = 0x00;
+		_initiative_stand.index[index] = 0x01;
 
 	pthread_mutex_unlock(&_initiative_stand.mutex);
 }
@@ -113,6 +116,7 @@ int destroy_initiative_stand_file(void)
 	int fd;
 	struct seek_amm_result_store r_result;
 	initiative_stand_all_index_init();
+	pthread_mutex_lock(&_seek_amm_file_mutex);
 	while(i--)
 	{
 		fd = open(SEEK_AMM_FILE, O_RDWR | O_CREAT, 0666);
@@ -132,6 +136,7 @@ int destroy_initiative_stand_file(void)
 		write(fd, &r_result, sizeof(struct seek_amm_result_store));
 	}
 	close(fd);
+	pthread_mutex_unlock(&_seek_amm_file_mutex);
 	return 0;
 }
 
@@ -333,7 +338,7 @@ int initiative_stand_file_add_to_memory(void)
 		{
 
 			pthread_mutex_unlock(&_seek_amm_file_mutex);
-			initiative_stand_all_index_init();
+//			initiative_stand_all_index_init();
 			return -1;
 		}
 
@@ -367,7 +372,7 @@ int initiative_stand_file_add_to_memory(void)
 	}
 	else									//不存在文件
 	{
-		initiative_stand_all_index_init();
+//		initiative_stand_all_index_init();
 		while(i--)
 		{
 			fd = open(SEEK_AMM_FILE, O_RDWR | O_CREAT, 0666);
@@ -402,6 +407,42 @@ void seek_amm_task_queue_init(void)
 	_seek_amm_task_queue.last = NULL;
 	pthread_mutex_init(&_seek_amm_task_queue.mutex, NULL);
 	pthread_cond_init(&_seek_amm_task_queue.queue_nonempty, NULL);
+}
+
+/*
+ * 函数功能:搜表队列是否为空
+ * 返回值 0 空  -1 fei空
+ * */
+int seek_amm_task_empty(void)
+{
+	pthread_mutex_lock(&_seek_amm_task_queue.mutex);
+	if(NULL == _seek_amm_task_queue.frist)
+	{
+		pthread_mutex_unlock(&_seek_amm_task_queue.mutex);
+		return 0;
+	}
+	pthread_mutex_unlock(&_seek_amm_task_queue.mutex);
+	return -1;
+}
+
+/*
+ * 函数功能:查询搜表任务个数
+ * 返回值:任务数量
+ * */
+int get_seek_amm_task_num(void)
+{
+	int num = 0;
+	struct seek_amm_task *temp;
+	pthread_mutex_lock(&_seek_amm_task_queue.mutex);
+	temp = _seek_amm_task_queue.frist;
+
+	while(temp != NULL)
+	{
+		num++;
+		temp = temp->next;
+	}
+	pthread_mutex_unlock(&_seek_amm_task_queue.mutex);
+	return num;
 }
 
 /*
@@ -445,18 +486,101 @@ int add_seek_amm_task(struct seek_amm_task *task)
 
 	if(NULL == _seek_amm_task_queue.frist)	//第一次添加
 	{
+//		printf("frist add seek amm task\n");
 		_seek_amm_task_queue.frist = task;
 		_seek_amm_task_queue.last = _seek_amm_task_queue.frist;
 		pthread_cond_broadcast(&_seek_amm_task_queue.queue_nonempty);
 	}
 	else									//非第一次添加
 	{
+//		printf("add seek amm task\n");
 		_seek_amm_task_queue.last->next = task;
 		_seek_amm_task_queue.last = _seek_amm_task_queue.last->next;
 	}
 
 	pthread_mutex_unlock(&_seek_amm_task_queue.mutex);
 
+	return 0;
+}
+
+/*
+ * 函数功能:删除该终端的搜表任务
+ * 参数：	ter   	终端地址
+ * 返回值: 0 成功  -1 失败
+ * */
+int dele_seek_amm_task(unsigned char *ter)
+{
+	if(NULL == ter)
+		return -1;
+	struct seek_amm_task *temp = NULL;
+	struct seek_amm_task *temp_temp = NULL;
+
+	pthread_mutex_lock(&_seek_amm_task_queue.mutex);
+	temp = _seek_amm_task_queue.frist;
+
+	while(NULL != temp)
+	{
+		if(1 == CompareUcharArray(ter, temp->ter, TER_ADDR_LEN))
+		{
+			break;
+		}
+		temp_temp = temp;
+		temp = temp->next;
+	}
+
+	if(NULL == temp)
+	{
+		pthread_mutex_unlock(&_seek_amm_task_queue.mutex);
+		return -1;
+	}
+	if(temp == _seek_amm_task_queue.frist)	//删除第一个
+	{
+		_seek_amm_task_queue.frist = temp->next;
+		if(NULL == _seek_amm_task_queue.frist)
+			_seek_amm_task_queue.last = NULL;
+		free(temp);
+	}
+	else
+	{
+		temp_temp->next = temp->next;
+		free(temp);
+		if(NULL == temp_temp->next)	//删除的是最后一个
+		{
+			_seek_amm_task_queue.last = temp_temp;
+		}
+	}
+	pthread_mutex_unlock(&_seek_amm_task_queue.mutex);
+
+	return 0;
+}
+
+/*
+ * 函数功能:获取第n个任务
+ * 参数:		n   第n个
+ * 			task返回任务
+ * 返回值:0 成功 -1 失败
+ * */
+int get_n_seek_amm_task(int n, struct seek_amm_task *task)
+{
+	if(n <= 0)
+		return -1;
+	struct seek_amm_task *temp;
+	pthread_mutex_lock(&_seek_amm_task_queue.mutex);
+	temp = _seek_amm_task_queue.frist;
+	while(NULL != temp)
+	{
+		n--;
+		if(0 == n)
+			break;
+		temp = temp->next;
+	}
+	if(NULL == temp)
+	{
+		pthread_mutex_unlock(&_seek_amm_task_queue.mutex);
+		return -1;
+	}
+	memcpy(task, temp, sizeof(struct seek_amm_task));
+	pthread_mutex_unlock(&_seek_amm_task_queue.mutex);
 	return 0;
 }
 
@@ -545,9 +669,12 @@ int creat_afn5_98(unsigned char *ter, unsigned char key, tpFrame376_1 *outbuf)
 	outbuf->Frame376_1App.AppBuf[index++] = 0x00;
 	outbuf->Frame376_1App.AppBuf[index++] = 0x00;
 	outbuf->Frame376_1App.AppBuf[index++] = 0x02;
-	outbuf->Frame376_1App.AppBuf[index++] = 0x0B;
+	outbuf->Frame376_1App.AppBuf[index++] = 0x0C;
 	outbuf->Frame376_1App.AppBuf[index++] = key;
 
+	//控制命令需要pw域，默认设置为16个0
+	memset((outbuf->Frame376_1App.AppBuf + index), 0x00, 16);
+	index += 16;
 
 	outbuf->Frame376_1App.Len = index;
 	outbuf->IsHaving = true;
@@ -562,6 +689,9 @@ void *SeekAmm(void *arg)
 {
 	struct seek_amm_task *temp;
 	struct seek_amm_task *temp_temp;
+
+	seek_amm_task_queue_init();
+
 	while(1)
 	{
 		sleep(1);
@@ -569,24 +699,26 @@ void *SeekAmm(void *arg)
 		while(NULL == _seek_amm_task_queue.frist)
 		{
 			usleep(1);
+//			printf("wait seek amm task\n");
 			pthread_cond_wait(&_seek_amm_task_queue.queue_nonempty, &_seek_amm_task_queue.mutex);
 		}
-
 		temp = _seek_amm_task_queue.frist;
-
+		temp_temp = temp;
 		while(NULL != temp)
 		{
-			temp_temp = temp;
 			if(0x66 == temp->flag)	//任务已经下发  进行超时判断
 			{
 				if(temp->ticker <= 0)	//删除该任务
 				{
+//					printf("dele seek amm task\n");
 					if(_seek_amm_task_queue.frist == temp)	//删除第一个
 					{
 						_seek_amm_task_queue.frist = _seek_amm_task_queue.frist->next;
 						if(NULL == _seek_amm_task_queue.frist)
 							_seek_amm_task_queue.last = NULL;
 						free(temp);
+						temp = _seek_amm_task_queue.frist;
+						temp_temp = temp;
 					}
 					else									//删除非第一个
 					{
@@ -594,53 +726,71 @@ void *SeekAmm(void *arg)
 						free(temp);
 						if(NULL == temp_temp->next)
 							_seek_amm_task_queue.last = temp_temp;
+						temp = temp_temp->next;
 					}
 				}
 				else
 				{
 					temp->ticker--;
+					temp_temp = temp;
+					temp = temp_temp->next;
 				}
 			}
 			else					//任务没有下发 则下发任务
 			{
-				tpFrame376_1 outbuf;
-				tp3761Buffer snbuf;
-				TerSocket *p;
-				int ret = 0;
-				creat_afn5_98(temp->ter, 1, &outbuf);
-
-				//将3761格式数据转换为可发送二进制数据
-				DL3761_Protocol_LinkPack(&outbuf, &snbuf);
-				//差找对应的套接字
-				pthread_mutex_lock(&(route_mutex));
-				p = AccordTerSeek(temp->ter);
-				if(p != NULL)
+				if(temp->ticker_ticker <= 0)
 				{
-					pthread_mutex_lock(&(p->write_mutex));
+//					printf("send seek amm task\n");
+					tpFrame376_1 outbuf;
+					tp3761Buffer snbuf;
+					TerSocket *p;
+					int ret = 0;
+					creat_afn5_98(temp->ter, 1, &outbuf);
 
-					while(1)
+					//将3761格式数据转换为可发送二进制数据
+					DL3761_Protocol_LinkPack(&outbuf, &snbuf);
+					//差找对应的套接字
+					pthread_mutex_lock(&(route_mutex));
+					p = AccordTerSeek(temp->ter);
+					if(p != NULL)
 					{
-						ret = write(p->s, snbuf.Data, snbuf.Len);
-						if(ret < 0)
+						pthread_mutex_lock(&(p->write_mutex));
+
+						int i = 0;
+						printf("**********\n");
+						for(i = 0; i < snbuf.Len; i++)
+							printf(" %02x",snbuf.Data[i]);
+						printf("\n");
+
+						while(1)
 						{
-							break;
+							ret = write(p->s, snbuf.Data, snbuf.Len);
+							if(ret < 0)
+							{
+								break;
+							}
+							snbuf.Len -= ret;
+							if(0 == snbuf.Len)
+							{
+								break;
+							}
 						}
-						snbuf.Len -= ret;
-						if(0 == snbuf.Len)
-						{
-							break;
-						}
+						pthread_mutex_unlock(&(p->write_mutex));
 					}
-					pthread_mutex_unlock(&(p->write_mutex));
+
+					pthread_mutex_unlock(&(route_mutex));
+
+					temp->flag = 0x66;
+					temp->ticker = SEEK_AMM_TICKER;
+				}
+				else
+				{
+					temp->ticker_ticker--;
 				}
 
-				pthread_mutex_unlock(&(route_mutex));
-
-				temp->flag = 0x66;
-				temp->ticker = SEEK_AMM_TICKER;
+				temp_temp = temp;
+				temp = temp_temp->next;
 			}
-
-			temp = temp_temp->next;
 		}
 
 		pthread_mutex_unlock(&_seek_amm_task_queue.mutex);

@@ -139,11 +139,11 @@ void *Usart0(void *data)
 	Usart0Fd = open("/dev/ttySP0", O_RDWR | O_NOCTTY);
 	if(Usart0Fd < 0)
 	{
-		printf("open ttySP0 err\n");
+//		printf("open ttySP0 err\n");
 		pthread_exit(NULL);
 	}
 	fcntl(Usart0Fd, F_SETFL, FNDELAY);	//´®¿Ú²»×èÈû
-	printf("open usart0 ok \n");
+//	printf("open usart0 ok \n");
 	//68 3d 00 81 00 00 00 00 00 02 03 02 01 f1 00 60 00 00 00 5a ff 00 fa
 	//00 e2 00 28 22 22 53 06 00 81 51 f8 07 03 00 16 07 27 09 13 43
 	//54 33 52 03 12 15 88 62 b0 04 58 02 64 00 32 dc 16
@@ -224,6 +224,7 @@ void *Usart0(void *data)
 		if(0x66 == _RebootUsart0)
 		{
 			sleep(3);
+			printf(" reboot\n");
 			system("reboot");
 		}
 

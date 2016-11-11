@@ -34,5 +34,5 @@
 #include <HLDWatchDog.h>
 #include "HLDUsb.h"
 #include "log3762.h"
-
+#include "SeekAmm.h"
 #endif /* MAIN_H_ */

@@ -330,15 +330,15 @@ void AFN03_10(tpFrame376_2 *snframe3762)
 	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x13;
 	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x43;
 	//通信模块厂商代码及版本信息
-	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x54;
-	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x33;
-	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x52;
-	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x03;
-	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x12;
-	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x15;
-	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x88;
-	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x62;
-	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0xB0;
+	snframe3762->Frame376_2App.AppData.Buffer[index++] = VENDOR_CODE0;
+	snframe3762->Frame376_2App.AppData.Buffer[index++] = VENDOR_CODE1;
+	snframe3762->Frame376_2App.AppData.Buffer[index++] = CHIP_CODE0;
+	snframe3762->Frame376_2App.AppData.Buffer[index++] = CHIP_CODE1;
+	snframe3762->Frame376_2App.AppData.Buffer[index++] = VERSION_DATE0;
+	snframe3762->Frame376_2App.AppData.Buffer[index++] = VERSION_DATE1;
+	snframe3762->Frame376_2App.AppData.Buffer[index++] = VERSION_DATE2;
+	snframe3762->Frame376_2App.AppData.Buffer[index++] = VERSION_NUM0;
+	snframe3762->Frame376_2App.AppData.Buffer[index++] = VERSION_NUM1;
 	//
 	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x04;
 	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x58;

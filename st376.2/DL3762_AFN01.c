@@ -14,6 +14,8 @@
 #include "string.h"
 #include "stdlib.h"
 #include "CommLib.h"
+#include "SysPara.h"
+#include <stddef.h>
 
 //硬件复位
 void AFN01_01(tpFrame376_2 *snframe3762)
@@ -46,6 +48,8 @@ void AFN01_02(tpFrame376_2 *snframe3762)
 	int i = 3;
 	int fd;
 	int ret = 0;
+	tpIsStand stand;
+	int len;
 	unsigned char DT[2] = {0};
 	unsigned char Fn = 0;
 	unsigned short outIndex = 0;
@@ -114,6 +118,27 @@ void AFN01_02(tpFrame376_2 *snframe3762)
 		snframe3762->Frame376_2App.AppData.Len = outIndex;
 		snframe3762->Frame376_2Link.Len += outIndex;
 	}
+
+	_RunPara.StandFlag = 0x55;
+	//打开文件
+	while(i--)
+	{
+		fd = open(CONFIG_FILE, O_RDWR);
+		if(fd >=0 )
+			break;
+	}
+
+	if(fd < 0)
+	{
+		return;
+	}
+
+	len = offsetof(tpConfiguration, StandFlag);
+	memcpy(&stand.flag, &_RunPara.StandFlag, 1);
+	stand.CS = Func_CS((void*)&stand, len);
+	len = offsetof(tpConfiguration, StandFlag);
+	WriteFile(fd, len, (void*)&stand, sizeof(tpCyFlag));
+	close(fd);
 }
 
 //数据区初始化

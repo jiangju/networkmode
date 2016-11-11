@@ -24,18 +24,18 @@ void ResponseAFN02_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 	/**********************************登录后检测是否需要搜表***************************/
 	unsigned char ter[4] = {0};
 	struct seek_amm_task task;
-	if(rvframe3761->Frame376_1App.AppBuf[2] == 0x04 && rvframe3761->Frame376_1App.AppBuf[3] == 0x00)
+	if(rvframe3761->Frame376_1App.AppBuf[2] == 0x01 && rvframe3761->Frame376_1App.AppBuf[3] == 0x00)
 	{
 		ter[0] = rvframe3761->Frame376_1Link.AddrField.WardCode[0];
 		ter[1] = rvframe3761->Frame376_1Link.AddrField.WardCode[1];
 		ter[2] = rvframe3761->Frame376_1Link.AddrField.Addr[0];
 		ter[3] = rvframe3761->Frame376_1Link.AddrField.Addr[1];
 
-		if(NULL == AccordTerFind(ter))
+		if(NULL == AccordTerFind(ter))	//非充值终端
 		{
-			if(0 == StatTerAmmNum(ter))
+			if(0 == StatTerAmmNum(ter))	//终端下有无电表
 			{
-				if(-1 == find_seek_amm_task(ter, &task))
+				if(-1 == find_seek_amm_task(ter, &task))	//搜表队列中无该终端
 				{
 					struct seek_amm_task *temp = (struct seek_amm_task *)malloc(sizeof(struct seek_amm_task));
 					if(temp != NULL)
@@ -43,6 +43,7 @@ void ResponseAFN02_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 						temp->flag = 0xFF;
 						temp->next = NULL;
 						memcpy(temp->ter, ter, 4);
+						temp->ticker_ticker = 10; //10 S
 						add_seek_amm_task(temp);
 					}
 				}

@@ -426,7 +426,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 				Buff645 b645;
 
 				memcpy(f645.Address, frame645.Address, AMM_ADDR_LEN);
-				f645.CtlField = 0xC1;
+				f645.CtlField = 0xD1;
 
 				switch (ret)
 				{
@@ -442,7 +442,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 					default:
 						break;
 				}
-
+				f645.Datas[0] += 0x33;
 				f645.Length = 1;
 
 				if(0 == Create645From(&f645, &b645))

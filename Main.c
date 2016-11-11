@@ -320,8 +320,8 @@ void StartUpdataRunParaIsStand(int fd)
 		len = offsetof(tpIsStand, CS);
 		if(stand.CS != Func_CS((void*)&stand, len))
 		{
-			//抄收成功的成功标志
-			_RunPara.StandFlag = 0xFE;
+			//台账下发状态
+			_RunPara.StandFlag = 0x55;
 
 			memcpy(&stand.flag, &_RunPara.StandFlag, 1);
 			stand.CS = Func_CS((void*)&stand, len);
@@ -335,8 +335,8 @@ void StartUpdataRunParaIsStand(int fd)
 	}
 	else
 	{
-		//抄收成功的成功标志
-		_RunPara.StandFlag = 0xFE;
+		//台账下发状态 未下发
+		_RunPara.StandFlag = 0x55;
 	}
 }
 
@@ -556,7 +556,7 @@ void NetworkModeInit(void)
 	//获取运行参数 设置模块网络
 	RunParaInit();
 
-	//获取电表台账
+	//获取电表被动台账
 	GetAmmStandBook();
 
 	//初始化线程池
@@ -569,6 +569,9 @@ void NetworkModeInit(void)
 
 	//抄表器初始化
 	CollectorInit();
+
+	//主动台账初始化
+	init_initiative_stand();
 
 	//看门狗初始化
 	watch_dog_init();
@@ -591,6 +594,7 @@ pthread_t new_pthread(void *(*__start_routine) (void *),int *id, int maxtime)
 	*id = apply_watch_dog();
 	if(*id < 0)
 	{
+		printf("apply watch dog erro\n");
 		system("reboot");
 	}
 	//设置看门狗

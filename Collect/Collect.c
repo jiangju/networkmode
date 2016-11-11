@@ -608,8 +608,8 @@ void *CollectTaskA(void *arg)
 						{
 							//返回找不到路径给充值终端
 							memcpy(f645.Address, temp_node->amm, AMM_ADDR_LEN);
-							f645.CtlField = 0xC1;
-							f645.Datas[0] = 0xFE;
+							f645.CtlField = 0xD1;
+							f645.Datas[0] = 0xFE + 0x33;
 							f645.Length = 1;
 							if(0 == Create645From(&f645, &b645))
 							{
@@ -906,11 +906,11 @@ int DeleTaskA(unsigned char *amm, unsigned char flag)
 				temp = NULL;
 				_Collect.taska.task_num--;
 				memset(&(p->task_status), 0, sizeof(struct task_a_status));
-				printf("dele task a \n");
+//				printf("dele task a \n");
 			}
 			break;
 		case 1:		//删除对应电表的全部任务,且删除节点
-			printf("dele task a node\n");
+//			printf("dele task a node\n");
 			//删除节点上的任务
 			while(p->task_head != NULL)
 			{
@@ -959,8 +959,8 @@ int DeleTaskA(unsigned char *amm, unsigned char flag)
 				}
 				free(p);
 			}
-			if(_Collect.taska.node_head == NULL)
-				printf("task node is empty\n");
+//			if(_Collect.taska.node_head == NULL)
+//				printf("task node is empty\n");
 
 			break;
 		default:
@@ -1089,7 +1089,6 @@ void CollectTaskB(void)
 					sleep(1);
 				}
 				ExecuteCollect1(_Collect.taskb.next->amm, _Collect.taskb.next->buf, _Collect.taskb.next->len);
-				printf("ddddddddddddddddd\n");
 				SetBoradcastContorlTimer(3);
 				c_status.conut = 3;
 			}
