@@ -38,7 +38,7 @@ struct log3762_task
 #define LOG_3762_FILE2	"/opt/log_3762_2.txt"	//log376.2文件名
 #define LOG_3762_FILE3	"/opt/log_3762_3.txt"	//log376.2文件名
 
-#define LOG_3762_FILE_NUM	5				//log376.2文件个数
+#define LOG_3762_FILE_NUM	4				//log376.2文件个数
 
 #define	LOG_3762_FILE_CFG	"/opt/log_3762_config"	//log376.2的信息文件，记录当前log的行号 位置 和开启标志以及文件编号
 

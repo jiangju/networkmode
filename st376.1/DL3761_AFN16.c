@@ -454,7 +454,7 @@ void DL3761_AFN16_14(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		if(_cfg3762_fd < 0)
 		{
 			perror("open log config: ");
-			pthread_exit(NULL);
+			return;
 		}
 	}
 	//获取配置文件属性
@@ -497,7 +497,7 @@ void DL3761_AFN16_15(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		if(_cfg3762_fd < 0)
 		{
 			perror("open log config: ");
-			pthread_exit(NULL);
+			return;
 		}
 	}
 	//获取配置文件属性

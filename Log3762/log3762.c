@@ -218,7 +218,7 @@ void open_log_3762(void)
 		if(_cfg3762_fd < 0)
 		{
 			perror("open log config: ");
-			pthread_exit(NULL);
+			return;
 		}
 	}
 	//获取配置文件属性
@@ -265,7 +265,7 @@ void close_log_3762(void)
 		if(_cfg3762_fd < 0)
 		{
 			perror("open log config: ");
-			pthread_exit(NULL);
+			return;
 		}
 	}
 	//获取配置文件属性
@@ -322,6 +322,7 @@ void *pthread_log_3762(void *arg)
 	if(_cfg3762_fd < 0)
 	{
 		perror("open log config: ");
+		close_watch_dog(wdt_id);
 		pthread_exit(NULL);
 	}
 	_cfg3762_fd_flag = 0x66;	//配置文件已成功打开
@@ -346,11 +347,17 @@ void *pthread_log_3762(void *arg)
 	}
 	feed_watch_dog(wdt_id);
 
+	if(_log_cfg.index >3)
+	{
+		_log_cfg.index = 0;
+	}
+
 	//打开正在log的文件
 	int log_fd = open(_log_3762_filename[_log_cfg.index], O_RDWR | O_CREAT, 0666);
 	if(log_fd < 0)
 	{
 		perror("open log file :");
+		close_watch_dog(wdt_id);
 		pthread_exit(NULL);
 	}
 	while(1)
@@ -378,6 +385,7 @@ void *pthread_log_3762(void *arg)
 			if(log_fd < 0)
 			{
 				pthread_mutex_unlock(&_log_3762_cfg_mutex);
+				close_watch_dog(wdt_id);
 				pthread_exit(NULL);
 			}
 		}

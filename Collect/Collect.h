@@ -85,7 +85,7 @@ typedef struct
 
 typedef struct
 {
-	int				index;				//台账电表
+	int				index;				//台账电表索引
 	int 			timer;				//请求任务倒计时
 	int             count;				//请求任务失败次数
 	int				isok;				//请求任务是否成功
