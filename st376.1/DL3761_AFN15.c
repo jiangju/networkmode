@@ -65,6 +65,13 @@ void DL3761_AFN15_07(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 			//端口号1
 			ip_port.TopPort = rvframe3761->Frame376_1App.AppBuf[index] + rvframe3761->Frame376_1App.AppBuf[index + 1] * 256;
 
+			if(ip_port.TopPort == ip_port.Port)
+			{
+				res = -1;
+				close(fd);
+				break;
+			}
+
 			len = offsetof(tpIpPort, CS);
 			ip_port.CS = Func_CS(&ip_port, len);
 			len = offsetof(tpConfiguration, IpPort);
@@ -74,12 +81,12 @@ void DL3761_AFN15_07(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 			break;
 		}
 	}
-	if(0 >= res)
+	if(0 <= res)
 	{
 		//数据标识
 		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
 		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
-		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x02;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x01;
 		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
 	}
 	else
@@ -87,7 +94,78 @@ void DL3761_AFN15_07(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		//数据标识
 		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
 		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x02;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+	}
+
+	//应用层帧长---不包括AFN/SEQ
+	snframe3761->Frame376_1App.Len = outdex;
+
+	memset(rvframe3761, 0, sizeof(tpFrame376_1));
+	snframe3761->IsHaving = true;
+	_RebootInfrared = 0x66;
+}
+
+/*
+ * 函数功能:主站ip以及端口设置
+ * */
+void DL3761_AFN15_05(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
+{
+	int index = 4;
+	int fd;
+	volatile int i = 3;	//打开文件失败重试次数
+	int res = -1;
+	int len = 0;
+	int outdex = 0;
+
+	tpServer ip_port;
+	memset(&ip_port, 0, sizeof(tpServer));
+
+	//打开系统配置参数文件
+	while(i > 0)
+	{
+
+		i--;
+		fd = open(CONFIG_FILE, O_RDWR);
+		if(fd < 0)
+		{
+			perror("open config file");
+			res = -1;
+		}
+		else
+		{
+			//IP 地址
+			memcpy(ip_port.ip, rvframe3761->Frame376_1App.AppBuf + index, 4);
+//			printf(" %d.%d.%d.%d\n",ip_port.Ip[0],ip_port.Ip[1],ip_port.Ip[2],ip_port.Ip[3]);
+			index += 4;
+			//端口号0
+			ip_port.port = rvframe3761->Frame376_1App.AppBuf[index] + rvframe3761->Frame376_1App.AppBuf[index + 1] * 256;
+			index += 2;
+			len = offsetof(tpServer, CS);
+			ip_port.CS = Func_CS(&ip_port, len);
+			len = offsetof(tpConfiguration, server);
+			res = WriteFile(fd, len, &ip_port, sizeof(tpServer));
+			close(fd);
+			pthread_mutex_lock(&_RunPara.mutex);
+			memcpy(&_RunPara.server, &ip_port, sizeof(tpServer));
+			pthread_mutex_unlock(&_RunPara.mutex);
+			break;
+		}
+	}
+	if(0 <= res)
+	{
+		//数据标识
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
 		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x01;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+	}
+	else
+	{
+		//数据标识
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
+		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x02;
 		snframe3761->Frame376_1App.AppBuf[outdex++] = 0x00;
 	}
 
@@ -182,6 +260,9 @@ void DL3761_AFN15_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 	{
 		case 7:
 			DL3761_AFN15_07(rvframe3761, snframe3761);
+			break;
+		case 5:
+			DL3761_AFN15_05(rvframe3761, snframe3761);
 			break;
 		case 20:
 			DL3761_AFN15_20(rvframe3761, snframe3761);

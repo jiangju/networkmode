@@ -35,4 +35,5 @@
 #include "HLDUsb.h"
 #include "log3762.h"
 #include "SeekAmm.h"
+#include "hld_ac.h"
 #endif /* MAIN_H_ */

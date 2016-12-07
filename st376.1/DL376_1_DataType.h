@@ -30,6 +30,15 @@ typedef enum
 
 typedef enum
 {
+	INFR 	= 0x11,	//红外
+	THR 	= 0x22,	//三网合一
+	TOPUP	= 0x33,	//充值终端
+	UST		= 0x44,	//串口
+	ZHU		= 0x55,	//主站
+}enDEV;				//设备类型
+
+typedef enum
+{
 	AFN3761_AFFI		= 0x00,	//确认帧
 	AFN3761_REST		= 0x01,	//复位命令
 	AFN3761_INTFA		= 0x02,	//链路接口检测
@@ -50,6 +59,7 @@ typedef enum
 	AFN3761_EXTEND15	= 0x15,	//扩展AFN=15
 	AFN3761_EXTEND16	= 0x16,	//扩展AFN=16
 	AFN3761_EXTEND17	= 0x17,
+	AFN3761_EXTEND18	= 0x18,
 }enAFN3761;					   		//AFN类型
 
 typedef struct

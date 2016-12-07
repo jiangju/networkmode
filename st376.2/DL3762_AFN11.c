@@ -50,20 +50,6 @@ void AFN11_01(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	}
 	else
 	{
-		//打开文件
-		while(i--)
-		{
-			fd = open(STAND_BOOK_FILE, O_RDWR);
-			if(fd >=0 )
-				break;
-		}
-		if(fd < 0)
-		{
-			ret = -1;
-			flag = 0;	//格式错误
-			goto Afn0;
-		}
-
 		while(num--)
 		{
 			memset(&node, 0xFF, sizeof(StandNode));
@@ -76,7 +62,9 @@ void AFN11_01(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 			node.num = GetNearestSurplus();
 			//抄表标志(_RunPara.CyFlag为抄表成功标志，当电表的抄表标志等于它时，抄表成功，每次重启抄表时，_RunPara.CyFlag - 1)
 			//将抄表标志设置为与_Runpara.CyFlag不相等
+			pthread_mutex_lock(&_RunPara.mutex);
 			node.cyFlag = _RunPara.CyFlag + 1;
+			pthread_mutex_unlock(&_RunPara.mutex);
 			//添加/修改內存中的台账节点
 			AddNodeStand(&node);
 			//从内存中获取该节点写入文件中
@@ -85,25 +73,25 @@ void AFN11_01(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 			{
 //				printf("add node stand\n");
 				GetStandNode(ret, &node);
-				AlterNodeStandFile(fd, &node);
+				ret = AlterNodeStandFile(&node);
 			}
-			ret = 0;
 		}
-		close(fd);
 
+		pthread_mutex_lock(&_RunPara.mutex);
 		if(0x01 != _RunPara.StandFlag)
 		{
 			_RunPara.StandFlag = 0x1;
 			//打开文件
 			while(i--)
 			{
-				fd = open(CONFIG_FILE, O_RDWR);
+				fd = open(CONFIG_FILE, O_RDWR | O_CREAT, 0666);
 				if(fd >=0 )
 					break;
 			}
 
 			if(fd < 0)
 			{
+				pthread_mutex_unlock(&_RunPara.mutex);
 				goto Afn0;
 			}
 
@@ -111,11 +99,13 @@ void AFN11_01(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 			int len;
 			len = offsetof(tpConfiguration, StandFlag);
 			memcpy(&stand.flag, &_RunPara.StandFlag, 1);
+			len = offsetof(tpIsStand, CS);
 			stand.CS = Func_CS((void*)&stand, len);
 			len = offsetof(tpConfiguration, StandFlag);
 			WriteFile(fd, len, (void*)&stand, sizeof(tpCyFlag));
 			close(fd);
 		}
+		pthread_mutex_unlock(&_RunPara.mutex);
 	}
 
 Afn0:		//应答
@@ -170,7 +160,6 @@ void AFN11_02(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	int	ret = -1;
 	unsigned char flag = 0;
 	int i = 3;
-	int fd;
 	unsigned char Fn = 0;
 	unsigned char DT[2] = {0};
 	//获得待删除的数量
@@ -184,28 +173,14 @@ void AFN11_02(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	}
 	else
 	{
-		while(i--)
+		for(i = 0; i < num; i++)
 		{
-			fd = open(STAND_BOOK_FILE, O_RDWR);
-			if(fd >= 0)
-				break;
+			memset(&Amm, 0, sizeof(AmmAttribute));
+			memcpy(Amm.Amm, (rvframe3762->Frame376_2App.AppData.Buffer+inIndex), AMM_ADDR_LEN);
+			inIndex += AMM_ADDR_LEN;
+			DeleNodeStand(Amm.Amm);
 		}
-		if(fd < 0)
-		{
-			ret = -1;
-		}
-		else
-		{
-			for(i = 0; i < num; i++)
-			{
-				memset(&Amm, 0, sizeof(AmmAttribute));
-				memcpy(Amm.Amm, (rvframe3762->Frame376_2App.AppData.Buffer+inIndex), AMM_ADDR_LEN);
-				inIndex += AMM_ADDR_LEN;
-				DeleNodeStand(fd, Amm.Amm);
-			}
-			close(fd);
-			ret = 0;
-		}
+		ret = 0;
 	}
 
 	//返回帧

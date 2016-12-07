@@ -9,7 +9,7 @@
 #define NETWORK0_NETWORK0_H_
 
 #include "SysPara.h"
-#include <pthread.h>
+//#include <pthread.h>
 
 #define SOCKET_TICKER	300	//套接字心跳倒计时
 

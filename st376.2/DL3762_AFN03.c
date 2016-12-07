@@ -89,13 +89,13 @@ void AFN03_03(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	{
 		p = 1;
 	}
-	else if(p > _StandNodeNum)
+	else if(p > GetStandNodeNum())
 	{
 		num = 0;
 	}
-	else if((p + num) > _StandNodeNum)
+	else if((p + num) > GetStandNodeNum())
 	{
-		num = p + num - _StandNodeNum + 1;
+		num = p + num - GetStandNodeNum() + 1;
 	}
 
 	//帧听到从节总点数量
@@ -155,11 +155,14 @@ void AFN03_04(tpFrame376_2 *snframe3762)
 			if(afn05_1.CS != Func_CS((void*)&afn05_1, len))
 			{
 				//将运行参数的主节点地址赋给配置参数的主节点地址
+				pthread_mutex_lock(&_RunPara.mutex);
 				memcpy(&afn05_1.HostNode, &_RunPara.AFN05_1.HostNode, NODE_ADDR_LEN);
+				pthread_mutex_unlock(&_RunPara.mutex);
 				afn05_1.CS = Func_CS((void*)&afn05_1, len);
 				len = offsetof(tpConfiguration, AFN05_1);
 				WriteFile(fd, len, (void*)&afn05_1, sizeof(tpAFN05_1));
 			}
+			close(fd);
 		}
 		else
 		{
@@ -172,8 +175,6 @@ void AFN03_04(tpFrame376_2 *snframe3762)
 
 	snframe3762->Frame376_2App.AppData.Len = index;
 	snframe3762->Frame376_2Link.Len += index;
-
-	close(fd);
 }
 
 /*
@@ -297,7 +298,9 @@ void AFN03_10(tpFrame376_2 *snframe3762)
 			if(afn05_1.CS != Func_CS((void*)&afn05_1, len))
 			{
 				//将运行参数的主节点地址赋给配置参数的主节点地址
+				pthread_mutex_lock(&_RunPara.mutex);
 				memcpy(&afn05_1.HostNode, &_RunPara.AFN05_1.HostNode, NODE_ADDR_LEN);
+				pthread_mutex_unlock(&_RunPara.mutex);
 				afn05_1.CS = Func_CS((void*)&afn05_1, len);
 				len = offsetof(tpConfiguration, AFN05_1);
 				WriteFile(fd, len, (void*)&afn05_1, sizeof(tpAFN05_1));
@@ -317,9 +320,9 @@ void AFN03_10(tpFrame376_2 *snframe3762)
 	temp = AMM_MAX_NUM / 256;
 	snframe3762->Frame376_2App.AppData.Buffer[index++] = temp;
 	//从节点数量
-	temp = _StandNodeNum % 256;
+	temp = (unsigned char)(GetStandNodeNum() % 256);
 	snframe3762->Frame376_2App.AppData.Buffer[index++] = temp;
-	temp = _StandNodeNum / 256;
+	temp = (unsigned char)(GetStandNodeNum() / 256);
 	snframe3762->Frame376_2App.AppData.Buffer[index++] = temp;
 	//通信模块使用的376.2协议发布日期（BCD）
 	snframe3762->Frame376_2App.AppData.Buffer[index++] = 0x16;

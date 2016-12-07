@@ -328,22 +328,37 @@ void *TopupSocketTicker(void *arg)
 		{
 			p->ticker--;
 			//如果心跳倒计时为0则删除该套接字
-			if(0 == p->ticker)
+			if(0 >= p->ticker)
 			{
 				if(p == _FristTop)
-					_FristTop = temp->next;
-				else
-					temp->next = p->next;
-				//删除epoll集合中的套接字
-				del_event(epoll_fd, p->s, EPOLLIN);
-				//关闭删除的套接字
-				close(p->s);
+				{
+					_FristTop = _FristTop->next;
+					temp = _FristTop;
+					//删除epoll集合中的套接字
+					del_event(epoll_fd, p->s, EPOLLIN);
+					//关闭删除的套接字
+					close(p->s);
 
-				//加入节点回收链表，等待回收线程回收
-				pthread_mutex_lock(&_topup_recycle_mutex);
-				AddTopupRecycle(p, ROUTE_RECYCLE_TICKER);
-				pthread_mutex_unlock(&_topup_recycle_mutex);
-				p = temp->next;
+					//加入节点回收链表，等待回收线程回收
+					pthread_mutex_lock(&_topup_recycle_mutex);
+					AddTopupRecycle(p, ROUTE_RECYCLE_TICKER);
+					pthread_mutex_unlock(&_topup_recycle_mutex);
+					p = temp;
+				}
+				else
+				{
+					temp->next = p->next;
+					//删除epoll集合中的套接字
+					del_event(epoll_fd, p->s, EPOLLIN);
+					//关闭删除的套接字
+					close(p->s);
+
+					//加入节点回收链表，等待回收线程回收
+					pthread_mutex_lock(&_topup_recycle_mutex);
+					AddTopupRecycle(p, ROUTE_RECYCLE_TICKER);
+					pthread_mutex_unlock(&_topup_recycle_mutex);
+					p = temp->next;
+				}
 			}
 			else
 			{
@@ -377,7 +392,7 @@ void *NetWork1Job0(void *arg)
 		usleep(10);
 		pthread_mutex_lock(&(ter_s->rvbuf.bufmutex));
 		ret = ProtoAnaly_Get376_1BufFromCycBuf(ter_s->rvbuf.buf, SOCKET_RV_MAX, &ter_s->rvbuf.r, \
-				&ter_s->rvbuf.w, &outbuf);
+				&ter_s->rvbuf.w, TOPUP, &outbuf);
 		if(-1 == ret)
 		{
 			pthread_mutex_unlock(&(ter_s->rvbuf.bufmutex));
@@ -444,7 +459,7 @@ void *NetWork1(void *arg)
 	//申请看门狗
 	int wdt_id = *(int *)arg;
 	feed_watch_dog(wdt_id);	//喂狗
-//	printf("Network1 wdt id %d\n",wdt_id);
+	printf("NETWORK1 WDT ID %d\n",wdt_id);
 
 	//初始化充值终端链接锁(充值终端与套接字对应链表)
 	if(pthread_mutex_init(&(topup_node_mutex), NULL))
@@ -469,7 +484,9 @@ void *NetWork1(void *arg)
 	}
 
 	//初始化服务端
-	int s = init_server(NULL, _RunPara.IpPort.TopPort, TOPUP_MAX);
+	pthread_mutex_lock(&_RunPara.mutex);
+	int s = init_server(NULL, _RunPara.IpPort.TopPort, 128);
+	pthread_mutex_unlock(&_RunPara.mutex);
 	if(0 > s)
 	{
 		close(topup_epoll);
@@ -553,7 +570,7 @@ void *NetWork1(void *arg)
 					perror("accept");
 					continue;
 				}
-				printf("new top up socket %d\n", rws);
+//				printf("new top up socket %d\n", rws);
 				if(0 > set_nonblock(rws))
 				{
 					close(rws);
@@ -568,9 +585,9 @@ void *NetWork1(void *arg)
 				}
 				else
 				{
-					printf("new top up con: %s:%d\n", \
-					inet_ntoa(addr.sin_addr),\
-					ntohs(addr.sin_port));
+//					printf("new top up con: %s:%d\n", \
+//					inet_ntoa(addr.sin_addr),\
+//					ntohs(addr.sin_port));
 
 					//将新来的链接加入到充值终端链表中
 					feed_watch_dog(wdt_id);	//喂狗
@@ -607,8 +624,13 @@ void *NetWork1(void *arg)
 						break;
 				}
 
-				if(len <= 0)
+				if(len < 0)
 				{
+					if(errno == EAGAIN)
+					{
+							break;
+					}
+
 					if(0 > del_event(topup_epoll, top_evt[i].data.fd, EPOLLIN))
 					{
 						perror("del_event");
@@ -637,15 +659,15 @@ void *NetWork1(void *arg)
 				}
 
 				//写入数据
-				printf("top up up:");
+//				printf("top up up:");
 				for(j=0; j<len; j++)
 				{
-					printf(" %02x",buf[j]);
+//					printf(" %02x",buf[j]);
 					ter_s->rvbuf.buf[ter_s->rvbuf.w] = buf[j];
 					ter_s->rvbuf.w++;
 					ter_s->rvbuf.w %= SOCKET_RV_MAX;
 				}
-				printf("\n");
+//				printf("\n");
 
 //				struct timeval tv;
 //				gettimeofday(&tv, NULL);
@@ -653,7 +675,10 @@ void *NetWork1(void *arg)
 
 				ter_s->ticker = SOCKET_TICKER;
 				pthread_mutex_unlock(&(ter_s->rvbuf.bufmutex));
-				threadpool_add_job(_Threadpool, NetWork1Job0, (void*)ter_s);
+				if(-1 == threadpool_add_job(_Threadpool, NetWork1Job0, (void*)ter_s))
+				{
+					printf("top up add job erro\n");
+				}
 			}
 		}
 	}

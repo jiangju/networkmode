@@ -10,6 +10,8 @@
 
 #include "SysPara.h"
 #include "pthread.h"
+#include <errno.h>
+#include <signal.h>
 
 typedef struct route_node
 {

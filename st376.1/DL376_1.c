@@ -396,7 +396,7 @@ int ProtoAnaly_Effic376_1Frame(tp3761Buffer *buf)
  * 返回值:0 成功 -1 失败
  * */
 int ProtoAnaly_Get376_1BufFromCycBuf(unsigned char *inbuf, unsigned short maxlen,\
-		unsigned short *r, unsigned short *w, tp3761Buffer *outbuf)
+		unsigned short *r, unsigned short *w, unsigned char src, tp3761Buffer *outbuf)
 {
 	unsigned short L1 = 0;
 	unsigned short L2 = 0;
@@ -518,6 +518,7 @@ int ProtoAnaly_Get376_1BufFromCycBuf(unsigned char *inbuf, unsigned short maxlen
 			if(0 == ProtoAnaly_Effic376_1Frame(outbuf))
 			{
 				(*r) = rr;
+				outbuf->src = src;
 				return 0;
 			}
 			(*r) = rr;
@@ -533,11 +534,76 @@ int ProtoAnaly_Get376_1BufFromCycBuf(unsigned char *inbuf, unsigned short maxlen
 }
 
 /*
+ * 函数功能:构造376.1否认帧
+ * 参数:		inbuf	接受
+ * 			outbuf	发送
+ * 			flag	上行/下行   0下行  非0 上行
+ * */
+void Creat_DL3761_No(tpFrame376_1 *inbuf, tpFrame376_1 *outbuf, char flag)
+{
+	int index = 0;
+	/**********************************填充链路层*******************************/
+	//起始符
+	outbuf->Frame376_1Link.BeginChar0 = 0x68;
+	outbuf->Frame376_1Link.BeginChar1 = 0x68;
+	//结束符
+	outbuf->Frame376_1Link.EndChar = 0x16;
+	//控制域
+	if(0 == flag)
+	{
+		outbuf->Frame376_1Link.CtlField.DIR = 0;	//下行
+	}
+	else
+	{
+		outbuf->Frame376_1Link.CtlField.DIR = 1;	//下行
+	}
+
+	outbuf->Frame376_1Link.CtlField.PRM = 0;	//从动站
+	outbuf->Frame376_1Link.CtlField.FCV = 0;	//FCB位无效
+	outbuf->Frame376_1Link.CtlField.FCB = 0;
+	//snframe3761->Frame376_1Link.CtlField.ACD  = 0;
+	inbuf->Frame376_1Link.CtlField.FUNC_CODE = 0;	//功能码
+	//地址域
+	memcpy(outbuf->Frame376_1Link.AddrField.WardCode,\
+			inbuf->Frame376_1Link.AddrField.WardCode, 2);
+	memcpy(outbuf->Frame376_1Link.AddrField.Addr, \
+			inbuf->Frame376_1Link.AddrField.Addr, 2);
+	inbuf->Frame376_1Link.AddrField.MSA = 0;
+
+	/*************************************应用层********************************/
+	//功能码
+	outbuf->Frame376_1App.AFN = AFN3761_AFFI;
+	//请求确认标志
+	outbuf->Frame376_1App.SEQ.CON = 0;	//不需要确认
+	//帧类型
+	outbuf->Frame376_1App.SEQ.FIR_FIN = FRM_FIRFIN_SING;
+	//帧序号
+	outbuf->Frame376_1App.SEQ.PSEQ_RSEQ = inbuf->Frame376_1App.SEQ.PSEQ_RSEQ;
+	//时间标签
+	outbuf->Frame376_1App.SEQ.TPV = 0;	//不要时标
+	//附加域 时标
+	outbuf->Frame376_1App.AUX.AUXTP.flag = 0;	//无效
+	outbuf->Frame376_1App.AUX.AUXEC.flag = 0;
+
+	//数据标识
+	outbuf->Frame376_1App.AppBuf[index++] = 0x00;
+	outbuf->Frame376_1App.AppBuf[index++] = 0x00;
+	outbuf->Frame376_1App.AppBuf[index++] = 0x02;
+	outbuf->Frame376_1App.AppBuf[index++] = 0x00;
+
+	//应用层帧长---不包括AFN/SEQ
+	outbuf->Frame376_1App.Len = index;
+
+	memset(inbuf, 0, sizeof(tpFrame376_1));
+	outbuf->IsHaving = true;
+}
+
+/*
  * 函数功能:处理376.1响应
  * */
 void DL3761_Process_Response(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 {
-	printf("rev 376.1 ok  AFN  %x\n",rvframe3761->Frame376_1App.AFN);
+//	printf("rev 376.1 ok  AFN  %x\n",rvframe3761->Frame376_1App.AFN);
 	switch(rvframe3761->Frame376_1App.AFN)
 	{
 		case AFN3761_AFFI:

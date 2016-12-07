@@ -95,7 +95,6 @@ void *PthreadUsart0Rv(void *data)
 		}
 		//printf("\n");
 		pthread_mutex_unlock(&mylock);
-//		pthread_cond_broadcast(&(usart_wait));
 	}
 	close(fd);
 	pthread_exit(NULL);
@@ -108,7 +107,7 @@ void *Usart0(void *data)
 {
 	//…Í«Îø¥√≈π∑
 	int wdt_id = *(int *)data;
-//	printf("Usart0   %d\n",wdt_id);
+	printf("USART0  WDT ID %d\n",wdt_id);
 	feed_watch_dog(wdt_id);	//Œππ∑
 
 	tp3762Buffer tpbuffer;
@@ -189,13 +188,13 @@ void *Usart0(void *data)
 		pthread_mutex_unlock(&mylock);
 		if(0 == ret)
 		{
-			printf("ret376.2\n");
+//			printf("ret376.2\n");
 			DL376_2_LinkFrame(&tpbuffer, &rvframe3762);
-			for(i = 0; i < tpbuffer.Len; i++)
-			{
-				printf(" %02x",tpbuffer.Data[i]);
-			}
-			printf("\n");
+//			for(i = 0; i < tpbuffer.Len; i++)
+//			{
+//				printf(" %02x",tpbuffer.Data[i]);
+//			}
+//			printf("\n");
 			log_3762_task_add(&_log_3762_task, tpbuffer.Data, tpbuffer.Len, 0x00);
 		}
 		else

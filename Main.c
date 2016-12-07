@@ -24,6 +24,7 @@ void signalaction(int num) {
  * */
 void SetTolerantRunPara(void)
 {
+	pthread_mutex_lock(&_RunPara.mutex);
 	memset(&_RunPara, 0, sizeof(RunPara));
 
 	//默认主节点地址
@@ -70,6 +71,16 @@ void SetTolerantRunPara(void)
 
 	//无台账下发
 	_RunPara.StandFlag = 0x55;
+
+	//授权服务端地址及端口
+	_RunPara.server.ip[0] = 192;
+	_RunPara.server.ip[1] = 168;
+	_RunPara.server.ip[2] = 0;
+	_RunPara.server.ip[3] = 30;
+
+	_RunPara.server.port = 10010;
+
+	pthread_mutex_unlock(&_RunPara.mutex);
 }
 
 /*
@@ -89,6 +100,7 @@ void StartUpdataRunParaAFN05_01(int fd)
 		if(afn05_1.CS != Func_CS((void*)&afn05_1, len))
 		{
 			//将运行参数的主节点地址赋给配置参数的主节点地址
+			pthread_mutex_lock(&_RunPara.mutex);
 			_RunPara.AFN05_1.HostNode[0] = 0;
 			_RunPara.AFN05_1.HostNode[1] = 0;
 			_RunPara.AFN05_1.HostNode[2] = 0;
@@ -96,23 +108,28 @@ void StartUpdataRunParaAFN05_01(int fd)
 			_RunPara.AFN05_1.HostNode[4] = 0;
 			_RunPara.AFN05_1.HostNode[5] = 0;
 			memcpy(&afn05_1.HostNode, &_RunPara.AFN05_1.HostNode, NODE_ADDR_LEN);
+			pthread_mutex_unlock(&_RunPara.mutex);
 			afn05_1.CS = Func_CS((void*)&afn05_1, len);
 			len = offsetof(tpConfiguration, AFN05_1);
 			WriteFile(fd, len, (void*)&afn05_1, sizeof(tpAFN05_1));
 		}
 		else
 		{
+			pthread_mutex_lock(&_RunPara.mutex);
 			memcpy(&_RunPara.AFN05_1.HostNode, &afn05_1.HostNode, NODE_ADDR_LEN);
+			pthread_mutex_unlock(&_RunPara.mutex);
 		}
 	}
 	else
 	{
+		pthread_mutex_lock(&_RunPara.mutex);
 		_RunPara.AFN05_1.HostNode[0] = 0;
 		_RunPara.AFN05_1.HostNode[1] = 0;
 		_RunPara.AFN05_1.HostNode[2] = 0;
 		_RunPara.AFN05_1.HostNode[3] = 0;
 		_RunPara.AFN05_1.HostNode[4] = 0;
 		_RunPara.AFN05_1.HostNode[5] = 0;
+		pthread_mutex_unlock(&_RunPara.mutex);
 	}
 }
 
@@ -133,22 +150,28 @@ void StartUpdataRunParaAFN05_02(int fd)
 		if(afn05_2.CS != Func_CS((void*)&afn05_2, len))
 		{
 			//默认禁止事件上报
+			pthread_mutex_lock(&_RunPara.mutex);
 			_RunPara.AFN05_2.IsAppera = 0;
 
 			memcpy(&afn05_2.IsAppera, &_RunPara.AFN05_2.IsAppera, 1);
+			pthread_mutex_unlock(&_RunPara.mutex);
 			afn05_2.CS = Func_CS((void*)&afn05_2, len);
 			len = offsetof(tpConfiguration, AFN05_2);
 			WriteFile(fd, len, (void*)&afn05_2, sizeof(tpAFN05_2));
 		}
 		else
 		{
+			pthread_mutex_lock(&_RunPara.mutex);
 			memcpy(&_RunPara.AFN05_2.IsAppera, &afn05_2.IsAppera, 1);
+			pthread_mutex_unlock(&_RunPara.mutex);
 		}
 	}
 	else
 	{
+		pthread_mutex_lock(&_RunPara.mutex);
 		//默认禁止事件上报
 		_RunPara.AFN05_2.IsAppera = 0;
+		pthread_mutex_unlock(&_RunPara.mutex);
 	}
 }
 
@@ -170,22 +193,28 @@ void StartUpdataRunParaAFN05_04(int fd)
 		if(afn05_4.CS != Func_CS((void*)&afn05_4, len))
 		{
 			//默认监控从节点超时为15秒
+			pthread_mutex_lock(&_RunPara.mutex);
 			_RunPara.AFN05_4.TimeOut = 15;
 
 			memcpy(&afn05_4.TimeOut, &_RunPara.AFN05_4.TimeOut, 1);
+			pthread_mutex_unlock(&_RunPara.mutex);
 			afn05_4.CS = Func_CS((void*)&afn05_4, len);
 			len = offsetof(tpConfiguration, AFN05_4);
 			WriteFile(fd, len, (void*)&afn05_4, sizeof(tpAFN05_4));
 		}
 		else
 		{
+			pthread_mutex_lock(&_RunPara.mutex);
 			memcpy(&_RunPara.AFN05_4.TimeOut, &afn05_4.TimeOut, 1);
+			pthread_mutex_unlock(&_RunPara.mutex);
 		}
 	}
 	else
 	{
 		//默认监控从节点超时为15秒
+		pthread_mutex_lock(&_RunPara.mutex);
 		_RunPara.AFN05_4.TimeOut = 15;
+		pthread_mutex_unlock(&_RunPara.mutex);
 	}
 }
 
@@ -206,6 +235,7 @@ void StartUpdataRunParaIpPort(int fd)
 		if(ipPort.CS != Func_CS((void*)&ipPort, len))
 		{
 			//网络设置
+			pthread_mutex_lock(&_RunPara.mutex);
 			//ip
 			_RunPara.IpPort.Ip[0] = 192;
 			_RunPara.IpPort.Ip[1] = 168;
@@ -231,18 +261,22 @@ void StartUpdataRunParaIpPort(int fd)
 			_RunPara.IpPort.TopPort = 8899;
 
 			memcpy(&ipPort, &_RunPara.IpPort, sizeof(tpIpPort));
+			pthread_mutex_unlock(&_RunPara.mutex);
 			ipPort.CS = Func_CS((void*)&ipPort, len);
 			len = offsetof(tpConfiguration, IpPort);
 			WriteFile(fd, len, (void*)&ipPort, sizeof(tpIpPort));
 		}
 		else
 		{
+			pthread_mutex_lock(&_RunPara.mutex);
 			memcpy(&_RunPara.IpPort, &ipPort, sizeof(tpIpPort));
+			pthread_mutex_unlock(&_RunPara.mutex);
 		}
 	}
 	else
 	{
 		//网络设置
+		pthread_mutex_lock(&_RunPara.mutex);
 		//ip
 		_RunPara.IpPort.Ip[0] = 192;
 		_RunPara.IpPort.Ip[1] = 168;
@@ -266,6 +300,7 @@ void StartUpdataRunParaIpPort(int fd)
 
 		//TCP Server 端口号
 		_RunPara.IpPort.TopPort = 8899;
+		pthread_mutex_unlock(&_RunPara.mutex);
 	}
 }
 
@@ -287,22 +322,28 @@ void StartUpdataRunParaCyFlag(int fd)
 		if(cyFlag.CS != Func_CS((void*)&cyFlag, len))
 		{
 			//抄收成功的成功标志
+			pthread_mutex_lock(&_RunPara.mutex);
 			_RunPara.CyFlag = 0xFE;
 
 			memcpy(&cyFlag.flag, &_RunPara.CyFlag, 1);
+			pthread_mutex_unlock(&_RunPara.mutex);
 			cyFlag.CS = Func_CS((void*)&cyFlag, len);
 			len = offsetof(tpConfiguration, cyFlag);
 			WriteFile(fd, len, (void*)&cyFlag, sizeof(tpCyFlag));
 		}
 		else
 		{
+			pthread_mutex_lock(&_RunPara.mutex);
 			memcpy(&_RunPara.CyFlag, &cyFlag.flag, 1);
+			pthread_mutex_unlock(&_RunPara.mutex);
 		}
 	}
 	else
 	{
 		//抄收成功的成功标志
+		pthread_mutex_lock(&_RunPara.mutex);
 		_RunPara.CyFlag = 0xFE;
+		pthread_mutex_unlock(&_RunPara.mutex);
 	}
 }
 
@@ -320,23 +361,75 @@ void StartUpdataRunParaIsStand(int fd)
 		len = offsetof(tpIsStand, CS);
 		if(stand.CS != Func_CS((void*)&stand, len))
 		{
+			pthread_mutex_lock(&_RunPara.mutex);
 			//台账下发状态
 			_RunPara.StandFlag = 0x55;
 
 			memcpy(&stand.flag, &_RunPara.StandFlag, 1);
+			pthread_mutex_unlock(&_RunPara.mutex);
 			stand.CS = Func_CS((void*)&stand, len);
 			len = offsetof(tpConfiguration, StandFlag);
 			WriteFile(fd, len, (void*)&stand, sizeof(tpIsStand));
 		}
 		else
 		{
+			pthread_mutex_lock(&_RunPara.mutex);
 			memcpy(&_RunPara.StandFlag, &stand.flag, 1);
+			pthread_mutex_unlock(&_RunPara.mutex);
 		}
 	}
 	else
 	{
 		//台账下发状态 未下发
+		pthread_mutex_lock(&_RunPara.mutex);
 		_RunPara.StandFlag = 0x55;
+		pthread_mutex_unlock(&_RunPara.mutex);
+	}
+}
+
+/*
+ * 函数功能:开机后初始化服务端ip及端口
+ * 参数:fd
+ * */
+void StartUpdataRunParaServer(int fd)
+{
+	tpServer s;
+	memset(&s, 0, sizeof(tpServer));
+	int len = 0;
+	len = offsetof(tpConfiguration, server);
+	if(0 == ReadFile(fd, len, (void *)(&s), sizeof(tpServer)))
+	{
+		len = offsetof(tpServer, CS);
+		if(s.CS != Func_CS(&s, len))
+		{
+			pthread_mutex_lock(&_RunPara.mutex);
+			_RunPara.server.ip[0] = 192;
+			_RunPara.server.ip[1] = 168;
+			_RunPara.server.ip[2] = 0;
+			_RunPara.server.ip[3] = 30;
+			_RunPara.server.port = 10010;
+			memcpy(&s, &_RunPara.server, sizeof(tpServer));
+			pthread_mutex_unlock(&_RunPara.mutex);
+			s.CS = Func_CS(&s, len);
+			len = offsetof(tpConfiguration, server);
+			WriteFile(fd, len, (void*)&s, sizeof(tpServer));
+		}
+		else
+		{
+			pthread_mutex_lock(&_RunPara.mutex);
+			memcpy(&_RunPara.server, &s, sizeof(tpServer));
+			pthread_mutex_unlock(&_RunPara.mutex);
+		}
+	}
+	else
+	{
+		pthread_mutex_lock(&_RunPara.mutex);
+		_RunPara.server.ip[0] = 192;
+		_RunPara.server.ip[1] = 168;
+		_RunPara.server.ip[2] = 0;
+		_RunPara.server.ip[3] = 30;
+		_RunPara.server.port = 10010;
+		pthread_mutex_unlock(&_RunPara.mutex);
 	}
 }
 
@@ -352,6 +445,8 @@ void RunParaInit(void)
 	unsigned char ip[20] = { 0 };
 	unsigned char netmask[20] = { 0 };
 	unsigned char gwip[20] = { 0 };
+
+	pthread_mutex_init(&_RunPara.mutex, NULL);
 
 	//判断文件是否存在  设置运行参数
 	ret = access(CONFIG_FILE, F_OK);
@@ -385,6 +480,9 @@ void RunParaInit(void)
 			//是否有下发台账标志
 			StartUpdataRunParaIsStand(fd);
 
+			//授权服务端ip及端口
+			StartUpdataRunParaServer(fd);
+
 			close(fd);
 		}
 		else
@@ -414,6 +512,7 @@ void RunParaInit(void)
 	//设置系统网络
 	//system("pkill -9 udhcpc");
 	sleep(1);
+	pthread_mutex_lock(&_RunPara.mutex);
 	sprintf((char *) eth, "eth0");
 	sprintf((char *) ip, "%u.%u.%u.%u", _RunPara.IpPort.Ip[0],
 			_RunPara.IpPort.Ip[1], _RunPara.IpPort.Ip[2],
@@ -424,6 +523,7 @@ void RunParaInit(void)
 	sprintf((char*) gwip, "%u.%u.%u.%u", _RunPara.IpPort.GwIp[0],
 			_RunPara.IpPort.GwIp[1], _RunPara.IpPort.GwIp[2],
 			_RunPara.IpPort.GwIp[3]);
+	pthread_mutex_unlock(&_RunPara.mutex);
 	IfConfigEthnert((char*) eth, (char*) ip, (char*) netmask,
 			(char*) gwip);
 	sleep(3);
@@ -506,8 +606,12 @@ void GetAmmStandBook(void)
 		{
 			for(i = 0; i < AMM_MAX_NUM; i++)
 			{
+				pthread_mutex_lock(&_RunPara.mutex);
 				if(amm.cyFlag == _RunPara.CyFlag)
+				{
 					amm.cyFlag = _RunPara.CyFlag + 1;
+				}
+				pthread_mutex_unlock(&_RunPara.mutex);
 				write(fd, &amm, sizeof(AmmAttribute));
 			}
 		}
@@ -523,12 +627,6 @@ void GetAmmStandBook(void)
  * */
 void GlobalVariableInit(void)
 {
-	//初始化台账锁
-	pthread_mutex_init(&StandMutex, NULL);
-	//运行参数
-	memset(&_RunPara, 0, sizeof(RunPara));
-	//存放排序后的台账节点
-	memset(_SortNode, 0, sizeof(StandNode *) * AMM_MAX_NUM);
 	//路由第一个节点地址
 	_FristNode = NULL;
 	//待回收路由节点第一个节点地址
@@ -539,10 +637,6 @@ void GlobalVariableInit(void)
 	_FristRecycleTopNode = NULL;
 	//线程池地址
 	_Threadpool = NULL;
-	//初始化台账节点数量
-	StandNodeNumInit();
-	//初始化台账文件空余位置标志
-	StandFileAllSurplus();
 }
 
 /*
@@ -552,6 +646,12 @@ void NetworkModeInit(void)
 {
 	//全局变量初始化
 	GlobalVariableInit();
+
+	HldStandInit();
+	//初始化台账节点数量
+	StandNodeNumInit();
+	//初始化台账文件空余位置标志
+	StandFileAllSurplus();
 
 	//获取运行参数 设置模块网络
 	RunParaInit();
@@ -576,6 +676,9 @@ void NetworkModeInit(void)
 	//看门狗初始化
 	watch_dog_init();
 
+	//初始化授权模块
+	init_hld_ac_mode();
+	open_hld_ac();
 	//376.2日志文件状态初始化
 //	init_3762log();
 }
@@ -613,13 +716,13 @@ int main(int argc, char *argv[])
 
 	if(0 == pthread_create(&pt[0], NULL, HLDWatchDog, NULL))
 	{
-		pt[1] = new_pthread(NetWork0, &id[0], 8);
-		pt[2] = new_pthread(Infrared, &id[1], 8);
+		pt[1] = new_pthread(NetWork0, &id[0], 10);
+		pt[2] = new_pthread(Infrared, &id[1], 10);
 		pt[3] = new_pthread(Collector, &id[2], 30);
-		pt[4] = new_pthread(Usart0, &id[3], 8);
-		pt[5] = new_pthread(pthread_log_3762, &id[4], 8);
-		pt[6] = new_pthread(pthread_usb, &id[5], 8);
-		pt[7] = new_pthread(NetWork1, &id[6], 8);
+		pt[4] = new_pthread(Usart0, &id[3], 10);
+		pt[5] = new_pthread(pthread_log_3762, &id[4], 10);
+		pt[6] = new_pthread(pthread_usb, &id[5], 60);
+		pt[7] = new_pthread(NetWork1, &id[6], 10);
 
 		pthread_join(pt[7], NULL);
 		pthread_join(pt[6], NULL);

@@ -43,10 +43,12 @@ void AFN12_01(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	if(fd >= 0)
 	{
 		//更新抄表成功标志
+		pthread_mutex_lock(&_RunPara.mutex);
 		_RunPara.CyFlag--;
 		tpCyFlag  cyFlag;
 		memset(&cyFlag, 0, sizeof(tpCyFlag));
 		cyFlag.flag = _RunPara.CyFlag;
+		pthread_mutex_unlock(&_RunPara.mutex);
 		int len = 0;
 
 		len = offsetof(tpCyFlag, CS);
@@ -54,10 +56,13 @@ void AFN12_01(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 
 		len = offsetof(tpConfiguration, cyFlag);
 		WriteFile(fd, len, (void*)&cyFlag, sizeof(tpCyFlag));
+		close(fd);
 	}
 	else
 	{
+		pthread_mutex_lock(&_RunPara.mutex);
 		_RunPara.CyFlag--;
+		pthread_mutex_unlock(&_RunPara.mutex);
 	}
 	Fn = 1;		//确认
 	FNtoDT(Fn, DT);

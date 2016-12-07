@@ -32,9 +32,9 @@ void AFN10_01(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	unsigned char temp = 0;
 
 	//从节点数量
-	temp = _StandNodeNum % 256;
+	temp = (unsigned char)(GetStandNodeNum() % 256);
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
-	temp = _StandNodeNum / 256;
+	temp = (unsigned char)(GetStandNodeNum() / 256);
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
 
 	//最大支持从节点数量
@@ -84,13 +84,13 @@ void AFN10_02(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 
 	//填充发送内容
 	//从节点总数量
-	temp = _StandNodeNum % 256;
+	temp = (unsigned char)(GetStandNodeNum() % 256);
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
-	temp = _StandNodeNum / 256;
+	temp = (unsigned char)(GetStandNodeNum() / 256);
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
 
 	//本次应答总数量	集中器下发的起始序号1为最小
-	if(_StandNodeNum < serialNum)
+	if(GetStandNodeNum() < serialNum)
 	{
 		snframe3762->Frame376_2App.AppData.Buffer[outIndex++]  = 0;
 		snframe3762->Frame376_2App.AppData.Len = outIndex;
@@ -98,9 +98,9 @@ void AFN10_02(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 		return;
 	}
 
-	if((_StandNodeNum - serialNum + 1) < count0)
+	if((GetStandNodeNum() - serialNum + 1) < count0)
 	{
-		count1 = _StandNodeNum - serialNum + 1;
+		count1 = GetStandNodeNum() - serialNum + 1;
 	}
 	else
 	{
@@ -161,19 +161,22 @@ void AFN10_04(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = 0x01;
 
 	//从节点数量
-	temp = (unsigned short)_StandNodeNum % 256;
+	temp = (unsigned char)(GetStandNodeNum() % 256);
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
-	temp = (unsigned short)_StandNodeNum / 256;
+	temp = (unsigned char)(GetStandNodeNum() / 256);
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
 
 	//已抄收节点数量
-	for(i = 0; i < _StandNodeNum; i++)
+	for(i = 0; i < GetStandNodeNum(); i++)
 	{
 		GetStandNode(i, &node);
+
+		pthread_mutex_lock(&_RunPara.mutex);
 		if(node.cyFlag == _RunPara.CyFlag)
 		{
 			num++;
 		}
+		pthread_mutex_unlock(&_RunPara.mutex);
 	}
 	temp = num % 256;
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
@@ -240,19 +243,20 @@ void AFN10_05(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 		sernum = 1;
 
 	//从节点数量
-	temp = (unsigned short)_StandNodeNum % 256;
+	temp = (unsigned char)(GetStandNodeNum() % 256);
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
-	temp = (unsigned short)_StandNodeNum / 256;
+	temp = (unsigned char)(GetStandNodeNum() / 256);
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
 
 	//本次应答数量
 	outIndex++;
 	tempout = outIndex;	//备份本次应答数量索引
 
-	for(i = 0; i < num && ((sernum + i) < _StandNodeNum); i++)
+	for(i = 0; i < num && ((sernum + i) < GetStandNodeNum()); i++)
 	{
 		GetStandNode(sernum - 1 + i, &node);
 		//抄表不成功
+		pthread_mutex_lock(&_RunPara.mutex);
 		if(node.cyFlag != _RunPara.CyFlag)
 		{
 			tempnum++;
@@ -267,6 +271,7 @@ void AFN10_05(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 			temp = temp || 0x01;
 			snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
 		}
+		pthread_mutex_unlock(&_RunPara.mutex);
 	}
 
 	snframe3762->Frame376_2App.AppData.Buffer[tempout] = tempnum;
@@ -287,9 +292,9 @@ void AFN10_06(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 	unsigned char temp = 0;
 
 	//从节点数量
-	temp = (unsigned short)_StandNodeNum % 256;
+	temp = (unsigned char)(GetStandNodeNum() % 256);
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
-	temp = (unsigned short)_StandNodeNum / 256;
+	temp = (unsigned char)(GetStandNodeNum() / 256);
 	snframe3762->Frame376_2App.AppData.Buffer[outIndex++] = temp;
 
 	//本次应答的从节点数量

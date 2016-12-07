@@ -8,6 +8,17 @@
 #ifndef COMMONALITY_COMMLIB_H_
 #define COMMONALITY_COMMLIB_H_
 
+/**
+ * 错误信息打印
+ * 自动打印发生错误时代码所在的位置
+ */
+#define     ERR_DEBUG_SWITCH        1
+#ifdef    ERR_DEBUG_SWITCH
+#define pr_err(fmt,args...) printf("\nFile:<%s> Fun:[%s] Line:%d\n "fmt, __FILE__, __FUNCTION__, __LINE__, ##args)
+#else
+#define pr_err(fmt,args...) /*do nothing */
+#endif
+
 #ifdef	COMMONALITY_COMMLIB_C_
 
 char DTtoFN(unsigned char *DT);
@@ -24,6 +35,7 @@ int HLDFileCopy(char *A, char *B);
 int get_file_crc(char *fname, unsigned short *crc);
 char chars_to_char(char c);
 int get_mac(char * mac);
+unsigned char get_rng(void);
 const unsigned char auchCRCHi[] = {
         0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0,
         0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
@@ -102,6 +114,8 @@ extern const unsigned char auchCRCHi[];
 extern int get_file_crc(char *fname, unsigned short *crc);
 extern char chars_to_char(char c);
 extern int get_mac(char * mac);
+extern unsigned char get_rng(void);
+
 #endif
 
 #endif /* COMMONALITY_COMMLIB_H_ */

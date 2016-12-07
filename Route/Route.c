@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include "HLDWatchDog.h"
 #include <sys/time.h>
+
 /*
  * 函数功能:根据终端地址查找节点地址
  * 参数:	Ter		终端地址
@@ -354,11 +355,14 @@ void *RouteNodeMemRecycle(void *arg)
 	//申请看门狗
 	int wdt_id = 0;
 	wdt_id = apply_watch_dog();
+
 	if(wdt_id < 0)
 	{
 //		printf("usart0 apply dog error\n");
 		system("reboot");
 	}
+
+	printf("ROUTE　NODE WDT  ID  %d\n", wdt_id);
 	//设置看门狗
 	set_watch_dog(wdt_id, 6);
 

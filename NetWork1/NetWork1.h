@@ -8,7 +8,7 @@
 #ifndef NETWORK1_NETWORK1_H_
 #define NETWORK1_NETWORK1_H_
 
-#include <pthread.h>
+//#include <pthread.h>
 #include "NetWork0.h"
 
 #define TOPUP_MAX	100	//充值终端最大连接数

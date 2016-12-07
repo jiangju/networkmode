@@ -24,6 +24,69 @@
 #include <sys/time.h>
 #include "SeekAmm.h"
 #include "log3762.h"
+#include "hld_ac.h"
+
+/*
+ * 函数功能；查询授权主站ip及端口
+ * */
+void DL3761_AFN16_05(tpFrame376_1 *snframe3761)
+{
+	unsigned short index = 4;
+	tpServer ip_port;
+	memset(&ip_port, 0, sizeof(tpServer));
+	int fd;
+	int len = 0;
+	int i = 3;
+	while(i--)
+	{
+		fd = open(CONFIG_FILE, O_RDWR);
+		if(fd >= 0)
+		{
+			break;
+		}
+	}
+
+	if(fd < 0)
+	{
+		printf("AFN 16 open CONFIG_FILE erro\n");
+		return;
+	}
+	else
+	{
+		len = offsetof(tpConfiguration, server);
+		if(0 == ReadFile(fd, len, (void *)(&ip_port), sizeof(tpServer)))
+		{
+			len = offsetof(tpServer, CS);
+			if(ip_port.CS != Func_CS((void*)&ip_port, len))
+			{
+				memcpy(&ip_port, &_RunPara.server, sizeof(tpServer));
+				ip_port.CS = Func_CS((void*)&ip_port, len);
+				len = offsetof(tpConfiguration, server);
+				WriteFile(fd, len, (void*)&ip_port, sizeof(tpServer));
+			}
+			close(fd);
+		}
+		else
+		{
+			printf("AFN 16 read CONFIG_FILE erro\n");
+			close(fd);
+			return;
+		}
+	}
+	//ip
+	memcpy(snframe3761->Frame376_1App.AppBuf + index, ip_port.ip, 4);
+	index += 4;
+
+	snframe3761->Frame376_1App.AppBuf[index++] = ip_port.port % 256;
+	snframe3761->Frame376_1App.AppBuf[index++] = ip_port.port / 256;
+
+	//应用层帧长---不包括AFN/SEQ
+	snframe3761->Frame376_1App.Len = index;
+
+	snframe3761->IsHaving = true;
+
+}
+
 /*
  * 函数功能:查询版本号
  * */
@@ -454,6 +517,7 @@ void DL3761_AFN16_14(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		if(_cfg3762_fd < 0)
 		{
 			perror("open log config: ");
+			pthread_mutex_unlock(&_log_3762_cfg_mutex);
 			return;
 		}
 	}
@@ -479,15 +543,16 @@ void DL3761_AFN16_14(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 void DL3761_AFN16_15(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 {
 	unsigned short out_inidex = 4;
+	unsigned char status = 0;
 
 	//运行状态
-	snframe3761->Frame376_1App.AppBuf[out_inidex++] = 1;
+	status = status | 0x01;
 
 	//搜表状态  是否有终端正在搜表
 	if(0 == seek_amm_task_empty())
-		snframe3761->Frame376_1App.AppBuf[out_inidex++] = 0;
+		status = status & 0xFD;
 	else
-		snframe3761->Frame376_1App.AppBuf[out_inidex++] = 1;
+		status = status | 0x02;
 	//
 	pthread_mutex_lock(&_log_3762_cfg_mutex);
 	if(_cfg3762_fd_flag != 0x66)
@@ -497,6 +562,7 @@ void DL3761_AFN16_15(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		if(_cfg3762_fd < 0)
 		{
 			perror("open log config: ");
+			pthread_mutex_unlock(&_log_3762_cfg_mutex);
 			return;
 		}
 	}
@@ -504,14 +570,17 @@ void DL3761_AFN16_15(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 	lseek(_cfg3762_fd, 0, SEEK_SET);
 	read(_cfg3762_fd, &_log_cfg, sizeof(struct log_config));
 	if(_log_cfg.flag == 0x00)
-		snframe3761->Frame376_1App.AppBuf[out_inidex++] = 1;
+		status = status | 0x04;
 	else
-		snframe3761->Frame376_1App.AppBuf[out_inidex++] = 0;
+		status = status & 0xFB;
 	close(_cfg3762_fd);
 	pthread_mutex_unlock(&_log_3762_cfg_mutex);
 
 	//授权状态
-	snframe3761->Frame376_1App.AppBuf[out_inidex++] = 1;
+	status = status | ((_hld_ac.get_status()) << 3);
+	snframe3761->Frame376_1App.AppBuf[out_inidex++] = status;
+
+	snframe3761->Frame376_1App.AppBuf[out_inidex++] = 0;
 
 	//应用层帧长---不包括AFN/SEQ
 	snframe3761->Frame376_1App.Len = out_inidex;
@@ -711,6 +780,21 @@ void DL3761_AFN16_23(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 }
 
 /*
+ * 函数功能:查询授权失败原因
+ * */
+void DL3761_AFN16_24(tpFrame376_1 *snframe3761)
+{
+	unsigned short out_index = 4;
+	//
+	snframe3761->Frame376_1App.AppBuf[out_index++] = _hld_ac.get_status();
+
+	//应用层帧长---不包括AFN/SEQ
+	snframe3761->Frame376_1App.Len = out_index;
+
+	snframe3761->IsHaving = true;
+}
+
+/*
  * 函数功能:查询参数
  * */
 void DL3761_AFN16_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
@@ -765,6 +849,9 @@ void DL3761_AFN16_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 
 	switch(Fn)
 	{
+		case 5:
+			DL3761_AFN16_05(snframe3761);
+			break;
 		case 6:
 			DL3761_AFN16_06(snframe3761);
 			break;
@@ -806,6 +893,9 @@ void DL3761_AFN16_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 			break;
 		case 23:
 			DL3761_AFN16_23(rvframe3761, snframe3761);
+			break;
+		case 24:
+			DL3761_AFN16_24(snframe3761);
 			break;
 		default:
 			break;

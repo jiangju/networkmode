@@ -47,6 +47,7 @@ void DL3761_AFN05_97(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 	}
 	else
 	{
+		printf("amm: %02x %02x %02x %02x %02x %02x\n",amm[0],amm[1],amm[2],amm[3],amm[4],amm[5]);
 		//数据标识
 		snframe3761->Frame376_1App.AppBuf[out_index++] = 0x00;
 		snframe3761->Frame376_1App.AppBuf[out_index++] = 0x00;
@@ -99,7 +100,7 @@ void DL3761_AFN05_99(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		res = 0;
 	}
 
-	if(res == 0)
+	if(res != 0)
 	{
 		//数据标识
 		snframe3761->Frame376_1App.AppBuf[out_index++] = 0x00;

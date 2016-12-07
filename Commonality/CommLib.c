@@ -21,6 +21,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
+#include <time.h>
 /*
  * 函数功能:hex 转 bcd
  * 参数:	hex	hex
@@ -253,7 +254,11 @@ int HLDFileCopy(char *A, char *B)
 		num = fread(buf, 1, 1024, fp0);
 //		printf("fread num  %d\n",num);
 		if(num < 0)
+		{
+			fclose(fp0);
+			fclose(fp1);
 			return -1;
+		}
 		fwrite(buf, 1, num, fp1);
 		if(num != 1024)
 		{
@@ -372,10 +377,22 @@ int get_mac(char * mac)    //返回值是实际写入char * mac的字符个数（不包括'\0'）
     if (ioctl (sock, SIOCGIFHWADDR, &ifq) < 0)
     {
         perror ("ioctl");
+        close(sock);
         return -1;
     }
 
 	memcpy(mac, ifq.ifr_hwaddr.sa_data, 6);
-
+	close(sock);
     return 0;
+}
+
+/*
+ * 函数功能：获得随机数
+ * */
+unsigned char get_rng(void)
+{
+	unsigned char ret = 0;
+	srand(time(NULL));
+	ret = rand() % 256;
+	return ret;
 }

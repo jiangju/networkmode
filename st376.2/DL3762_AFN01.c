@@ -53,37 +53,11 @@ void AFN01_02(tpFrame376_2 *snframe3762)
 	unsigned char DT[2] = {0};
 	unsigned char Fn = 0;
 	unsigned short outIndex = 0;
-	while(i--)
-	{
-		fd = open(STAND_BOOK_FILE, O_RDWR);
-		if(fd >= 0)
-			break;
-	}
-	if(fd < 0)
-	{
-		ret = -1;
-	}
-	else
-	{
-		AmmAttribute amm;
-		memset(&amm, 0xFF, sizeof(AmmAttribute));
-		lseek(fd, 0, SEEK_SET);
-		for(i = 0; i < AMM_MAX_NUM; i++)
-		{
-			write(fd, &amm, sizeof(AmmAttribute));
-		}
-		close(fd);
 
-		memset(_Surplus, 0, AMM_MAX_NUM);
-
-		for(i = 0; i < _StandNodeNum; i++)
-		{
-			if(_SortNode[i] != NULL)
-				free(_SortNode[i]);
-			_SortNode[i] = NULL;
-		}
-		_StandNodeNum = 0;
-		ret = 0;
+	ret = StandFileInit();
+	if(0 == ret)
+	{
+		StandMemInit();
 	}
 
 	if(ret == -1)
@@ -118,8 +92,9 @@ void AFN01_02(tpFrame376_2 *snframe3762)
 		snframe3762->Frame376_2App.AppData.Len = outIndex;
 		snframe3762->Frame376_2Link.Len += outIndex;
 	}
-
+	pthread_mutex_lock(&_RunPara.mutex);
 	_RunPara.StandFlag = 0x55;
+	pthread_mutex_unlock(&_RunPara.mutex);
 	//打开文件
 	while(i--)
 	{
@@ -134,7 +109,9 @@ void AFN01_02(tpFrame376_2 *snframe3762)
 	}
 
 	len = offsetof(tpConfiguration, StandFlag);
+	pthread_mutex_lock(&_RunPara.mutex);
 	memcpy(&stand.flag, &_RunPara.StandFlag, 1);
+	pthread_mutex_unlock(&_RunPara.mutex);
 	stand.CS = Func_CS((void*)&stand, len);
 	len = offsetof(tpConfiguration, StandFlag);
 	WriteFile(fd, len, (void*)&stand, sizeof(tpCyFlag));

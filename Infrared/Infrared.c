@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include "SysPara.h"
 #include <HLDWatchDog.h>
+#include "EncryptionData.h"
 
 static int _fd_infrared;				//红外设备描述符
 static pthread_mutex_t	_infrared_lock;	//红外锁
@@ -107,6 +108,8 @@ void *Infrared(void *data)
 	int wdt_id = *(int *)data;
 	feed_watch_dog(wdt_id);	//喂狗
 
+	printf("INFRARED  WDT  ID  %d\n", wdt_id);
+
 	//设置串口波特率
 	//设置串口波特率
 	UsartAttribute usart;
@@ -156,7 +159,7 @@ void *Infrared(void *data)
 //		pthread_cond_wait(&(infrared_wait), &(_infrared_lock));
 
 		ret = ProtoAnaly_Get376_1BufFromCycBuf(_InfaraedBuffer.DataBuffer, INFRARED_RV_DATA_LEN, \
-				&_InfaraedBuffer.ReadIndex, &_InfaraedBuffer.WriteIndex, &outbuf);
+				&_InfaraedBuffer.ReadIndex, &_InfaraedBuffer.WriteIndex, INFR, &outbuf);
 		pthread_mutex_unlock(&_infrared_lock);
 		if(0 == ret)
 		{
@@ -179,9 +182,20 @@ void *Infrared(void *data)
 			continue;
 		}
 
-		if(true == rvframe3761.IsHaving)
+		if(INFR == outbuf.src)	//如果数据源是红外，进行MAC校验
 		{
-			DL3761_Process_Response(&rvframe3761, &snframe3761);
+			if(0 == MD5Verify(outbuf.Data, outbuf.Len, outbuf.src))
+			{
+				if(true == rvframe3761.IsHaving)
+				{
+					DL3761_Process_Response(&rvframe3761, &snframe3761);
+				}
+			}
+			else
+			{
+				//生成否认帧
+				Creat_DL3761_No(&rvframe3761, &snframe3761, 1);
+			}
 		}
 
 		if(true == snframe3761.IsHaving)

@@ -142,6 +142,7 @@ void log_3762_task_dele(struct log3762_task *task)
 	temp = task->head;
 	if(NULL == temp)
 	{
+		pthread_mutex_unlock(&task->mutex);
 		return;
 	}
 
@@ -218,6 +219,7 @@ void open_log_3762(void)
 		if(_cfg3762_fd < 0)
 		{
 			perror("open log config: ");
+			pthread_mutex_unlock(&_log_3762_cfg_mutex);
 			return;
 		}
 	}
@@ -265,6 +267,7 @@ void close_log_3762(void)
 		if(_cfg3762_fd < 0)
 		{
 			perror("open log config: ");
+			pthread_mutex_unlock(&_log_3762_cfg_mutex);
 			return;
 		}
 	}
@@ -310,6 +313,7 @@ void *pthread_log_3762(void *arg)
 	//获取看门狗id
 	int wdt_id = *(int *)arg;
 	feed_watch_dog(wdt_id);	//喂狗
+	printf("LOG 3762 WDT ID %d\n", wdt_id);
 
 	//初始化 任务器
 	log_3762_task_init(&_log_3762_task, 30);
@@ -384,6 +388,8 @@ void *pthread_log_3762(void *arg)
 			log_fd = open(_log_3762_filename[_log_cfg.index], O_RDWR | O_CREAT | O_TRUNC, 0666);
 			if(log_fd < 0)
 			{
+				printf("_log_cfg.index   %d\n",_log_cfg.index);
+				perror("log open:");
 				pthread_mutex_unlock(&_log_3762_cfg_mutex);
 				close_watch_dog(wdt_id);
 				pthread_exit(NULL);

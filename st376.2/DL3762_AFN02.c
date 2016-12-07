@@ -33,7 +33,11 @@ void Create3762AFN02_01(unsigned char *amm, unsigned char type, unsigned char *i
 	snframe3762->Frame376_2Link.Len += R_LEN;
 	//地址域
 	memcpy(snframe3762->Frame376_2App.Addr.SourceAddr, amm, AMM_ADDR_LEN);	//源地址
+
+	pthread_mutex_lock(&_RunPara.mutex);
 	memcpy(snframe3762->Frame376_2App.Addr.DestinationAddr, _RunPara.AFN05_1.HostNode, NODE_ADDR_LEN);//目的地址
+	pthread_mutex_unlock(&_RunPara.mutex);
+
 	snframe3762->Frame376_2Link.Len += (6 + 6);
 	//功能码
 	snframe3762->Frame376_2App.AppData.AFN = AFN_DATASEND;	//上报

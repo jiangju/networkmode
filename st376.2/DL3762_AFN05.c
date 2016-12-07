@@ -54,7 +54,11 @@ void AFN05_01(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 		{
 			memcpy(&(afn05_1.HostNode), (rvframe3762->Frame376_2App.AppData.Buffer+inIndex), NODE_ADDR_LEN);
 			inIndex += NODE_ADDR_LEN;
+
+			pthread_mutex_lock(&_RunPara.mutex);
 			memcpy(&_RunPara.AFN05_1.HostNode, &(afn05_1.HostNode), NODE_ADDR_LEN);
+			pthread_mutex_unlock(&_RunPara.mutex);
+
 			len = offsetof(tpAFN05_1, CS);
 			afn05_1.CS = Func_CS(&afn05_1, len);
 			len = offsetof(tpConfiguration, AFN05_1);
@@ -133,7 +137,11 @@ void AFN05_02(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 		{
 			memcpy(&(afn05_2.IsAppera), (rvframe3762->Frame376_2App.AppData.Buffer+inIndex), 1);
 			inIndex += 1;
+
+			pthread_mutex_lock(&_RunPara.mutex);
 			memcpy(&_RunPara.AFN05_2.IsAppera, &(afn05_2.IsAppera), 1);
+			pthread_mutex_unlock(&_RunPara.mutex);
+
 			len = offsetof(tpAFN05_2, CS);
 			afn05_2.CS = Func_CS(&afn05_2, len);
 			len = offsetof(tpConfiguration, AFN05_1);
@@ -254,7 +262,10 @@ void AFN05_04(tpFrame376_2 *rvframe3762, tpFrame376_2 *snframe3762)
 		else
 		{
 			afn05_4.TimeOut = rvframe3762->Frame376_2App.AppData.Buffer[inIndex];
+
+			pthread_mutex_lock(&_RunPara.mutex);
 			_RunPara.AFN05_4.TimeOut = afn05_4.TimeOut;
+			pthread_mutex_unlock(&_RunPara.mutex);
 
 			len = offsetof(tpAFN05_4, CS);
 			afn05_4.CS = Func_CS((void*)&afn05_4, len);

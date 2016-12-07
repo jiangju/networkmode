@@ -92,30 +92,25 @@ void AFN14_01(tpFrame376_2 *rvframe3762)
 				_Collect.taskc.timer = 1;
 				_Collect.taskc.count = 0;
 				_Collect.taskc.index++;
-				_Collect.taskc.index %= _StandNodeNum;
+				_Collect.taskc.index %= GetStandNodeNum();
 			}
 			break;
 		case 0x01:
 			if(1 == CompareUcharArray(node.Amm, rvframe3762->Frame376_2App.Addr.DestinationAddr, AMM_ADDR_LEN))
 			{
 				//更新抄表成功标志
+				pthread_mutex_lock(&_RunPara.mutex);
 				node.cyFlag = _RunPara.CyFlag;
+				pthread_mutex_unlock(&_RunPara.mutex);
 				UpdateStandNode(_Collect.taskc.index, &node);
-				while(i--)
-				{
-					fd = open(STAND_BOOK_FILE, O_RDWR, 0666);
-					if(fd >= 0)
-						break;
-				}
-				if(fd >= 0)
-					AlterNodeStandFile(fd, &node);
+				AlterNodeStandFile(&node);
 //				printf("index ok %d\n",_Collect.taskc.index);
 				pthread_mutex_lock(&_Collect.taskc.taskc_mutex);
 				_Collect.taskc.isok = 0;
 				_Collect.taskc.timer = 0;
 				_Collect.taskc.count = 0;
 				_Collect.taskc.index++;
-				_Collect.taskc.index %= _StandNodeNum;
+				_Collect.taskc.index %= GetStandNodeNum();
 				pthread_mutex_unlock(&_Collect.taskc.taskc_mutex);
 
 			}

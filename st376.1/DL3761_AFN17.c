@@ -34,29 +34,22 @@ int seek_amm_synchroniza(unsigned char *amm, unsigned char *ter)
 	if(NULL == amm || NULL == ter)
 		return -1;
 	StandNode node;
-	int i = 3;
-	int fd, ret;
-	//打开文件
-	while(i--)
-	{
-		fd = open(STAND_BOOK_FILE, O_RDWR);
-		if(fd >=0 )
-			break;
-	}
-
-	if(fd < 0)
-		return -1;
+	int ret;
 
 	if(0x01 == _RunPara.StandFlag)
 	{
 		//查看是否有相同的电表
-		ret = SeekAmmAddr(node.Amm, AMM_ADDR_LEN);
+		ret = SeekAmmAddr(amm, AMM_ADDR_LEN);
+//		printf("-------------------ret  %d\n",ret);
 		if(ret >= 0)
 		{
 			GetStandNode(ret, &node);
 			memcpy(node.Ter, ter, TER_ADDR_LEN);
-			AddNodeStand(&node);
-			AlterNodeStandFile(fd, &node);
+			if(0 > AddNodeStand(&node))
+			{
+				printf("*************updata  erro\n");
+			}
+			AlterNodeStandFile(&node);
 		}
 	}
 	else
@@ -75,9 +68,21 @@ int seek_amm_synchroniza(unsigned char *amm, unsigned char *ter)
 		node.cyFlag = _RunPara.CyFlag + 1;
 		//添加/修改內存中的台账节点
 		AddNodeStand(&node);
-		AlterNodeStandFile(fd, &node);
+
+//		//打开文件
+//		while(i--)
+//		{
+//			fd = open(STAND_BOOK_FILE, O_RDWR);
+//			if(fd >=0 )
+//				break;
+//		}
+//
+//		if(fd < 0)
+//		{
+//			return -1;
+//		}
+		AlterNodeStandFile(&node);
 	}
-	close(fd);
 	return 0;
 }
 
@@ -96,6 +101,7 @@ void DL3761_AFN17_01(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 	result = (struct seek_amm_result *)malloc(sizeof(struct seek_amm_result));
 	if(NULL == result)
 	{
+		perror("malloc seek_amm_result:");
 		res = -1;
 		goto fntable;
 	}
@@ -114,24 +120,33 @@ void DL3761_AFN17_01(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 	result->index = initiative_stand_min_not_using_index();
 	if(result->index < 0)
 	{
+		printf("not have not_using_index \n");
 		res = -1;
 		goto fntable;
 	}
 
 	for(i = 0; i < num; i++)
 	{
-		memcpy((unsigned char *)(result->amm + i), (rvframe3761->Frame376_1App.AppBuf + in_index), AMM_ADDR_LEN);
+		memcpy((unsigned char *)(*(result->amm + i)), (rvframe3761->Frame376_1App.AppBuf + in_index), AMM_ADDR_LEN);
+//		printf("+++++++ %02x %02x %02x %02x %02x %02x\n",result->amm[i][0],
+//				result->amm[i][1],result->amm[i][2],result->amm[i][3], \
+//				result->amm[i][4],result->amm[i][5]);
 		in_index += AMM_ADDR_LEN;
 		//没有下发被动台账时，将内容同步到被动台账，有下发被动台账时，根据搜表结果更新被动台账路径
-		seek_amm_synchroniza((unsigned char *)(result->amm + i), result->ter);
+		seek_amm_synchroniza((unsigned char *)(*(result->amm + i)), result->ter);
 	}
 
 	if(0 == add_seek_amm_result(result))
 	{
 		res = write_seek_amm_result(result);
+		if(res < 0)
+		{
+			printf("write_seek_amm_result  erro\n");
+		}
 	}
 	else
 	{
+		printf("add_seek_amm_result  erro\n");
 		res = -1;
 	}
 

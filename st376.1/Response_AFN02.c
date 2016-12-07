@@ -43,14 +43,13 @@ void ResponseAFN02_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 						temp->flag = 0xFF;
 						temp->next = NULL;
 						memcpy(temp->ter, ter, 4);
-						temp->ticker_ticker = 10; //10 S
+						temp->ticker_ticker = 3 * 60; //10 S
 						add_seek_amm_task(temp);
 					}
 				}
 			}
 		}
 	}
-
 
 	/************************************************************************/
 	if(NULL == snframe3761)

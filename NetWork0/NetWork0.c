@@ -151,8 +151,9 @@ void *SocketTicker(void *arg)
 		printf("usart0 apply dog error\n");
 		system("reboot");
 	}
+	printf("NETWOER0  SOCKER　TICKER WDT ID %d\n", wdt_id);
 	//设置看门狗
-	set_watch_dog(wdt_id, 6);
+	set_watch_dog(wdt_id, 10);
 
 	while(1)
 	{
@@ -160,10 +161,11 @@ void *SocketTicker(void *arg)
 
 		i = 0;
 		sleep(1);
+		feed_watch_dog(wdt_id);	//喂狗
 		pthread_mutex_lock(&(route_mutex));
 		p = _FristNode;
 		temp = p;
-		//睡眠5s
+
 		if(NULL == p)
 		{
 			//解锁，防止死锁
@@ -174,24 +176,40 @@ void *SocketTicker(void *arg)
 		{
 			p->ticker--;
 			//如果心跳倒计时为0 则删除该套接字
-			if(0 == p->ticker)
+			if(0 >= p->ticker)
 			{
 				if(p == _FristNode)
-					_FristNode = temp->next;
+				{
+					_FristNode = _FristNode->next;
+					temp = _FristNode;
+					//删除epoll 集合中的套接字
+					del_event(epoll_fd, p->s, EPOLLIN);
+					//关闭删除的套接字
+					close(p->s);
+
+					//加入节点回收链表，等待回收线程回收
+					feed_watch_dog(wdt_id);	//喂狗
+					pthread_mutex_lock(&(_route_recycle_mutex));
+					AddRouteRecycle(p, ROUTE_RECYCLE_TICKER);
+					pthread_mutex_unlock(&(_route_recycle_mutex));
+					//
+					p = temp;
+				}
 				else
+				{
 					temp->next = p->next;
-				//删除epoll 集合中的套接字
-				del_event(epoll_fd, p->s, EPOLLIN);
-				//关闭删除的套接字
-				close(p->s);
-
-				//加入节点回收链表，等待回收线程回收
-				pthread_mutex_lock(&(_route_recycle_mutex));
-				AddRouteRecycle(p, ROUTE_RECYCLE_TICKER);
-				pthread_mutex_unlock(&(_route_recycle_mutex));
-
-				//
-				p = temp->next;
+					//删除epoll 集合中的套接字
+					del_event(epoll_fd, p->s, EPOLLIN);
+					//关闭删除的套接字
+					close(p->s);
+					//加入节点回收链表，等待回收线程回收
+					feed_watch_dog(wdt_id);	//喂狗
+					pthread_mutex_lock(&(_route_recycle_mutex));
+					AddRouteRecycle(p, ROUTE_RECYCLE_TICKER);
+					pthread_mutex_unlock(&(_route_recycle_mutex));
+					//
+					p = temp->next;
+				}
 			}
 			else
 			{
@@ -226,7 +244,7 @@ void *NetWorkJob0(void *arg)
 	{
 		usleep(1);
 		pthread_mutex_lock(&(s_rv->analy_mutex));
-		ret = ProtoAnaly_Get376_1BufFromCycBuf(s_rv->buff, SOCKET_RV_MAX, &s_rv->r, &s_rv->w, &outbuf);
+		ret = ProtoAnaly_Get376_1BufFromCycBuf(s_rv->buff, SOCKET_RV_MAX, &s_rv->r, &s_rv->w, THR, &outbuf);
 		if(-1 == ret)
 		{
 			pthread_mutex_unlock(&(s_rv->analy_mutex));
@@ -294,6 +312,7 @@ void *NetWork0(void *arg)
 	//申请看门狗
 	int wdt_id = *(int *)arg;
 	feed_watch_dog(wdt_id);	//喂狗
+	printf("NETWORK0  WDT  ID %d\n", wdt_id);
 
 	//初始化路由的锁(终端与套接字对应链表)
 	if(pthread_mutex_init(&(route_mutex), NULL))
@@ -318,7 +337,9 @@ void *NetWork0(void *arg)
 	}
 
 	//初始化服务端
-	int s = init_server(NULL, _RunPara.IpPort.Port, NETWORK_MAX_CONNCET);
+	pthread_mutex_lock(&_RunPara.mutex);
+	int s = init_server(NULL, _RunPara.IpPort.Port, 128);
+	pthread_mutex_unlock(&_RunPara.mutex);
 	if(0 > s)
 	{
 		close(epollfd);
@@ -417,22 +438,25 @@ void *NetWork0(void *arg)
 				}
 				else
 				{
-					//为本次连接上的套接字申请接受缓存
-					sp = (SocketRv *)malloc(sizeof(SocketRv));
-					if(NULL == sp)
-					{
-						perror("SocketRv");
-						close(rws);
-						continue;
-					}
-					//pthread_mutexattr_settype(&(sp->analy_mutex), PTHREAD_MUTEX_RECURSIVE_NP);
-					memset(sp, 0x00, sizeof(SocketRv));
-					pthread_mutex_init(&(sp->analy_mutex), NULL);
 					//将新连接的套接字加入到路由链表中
+					feed_watch_dog(wdt_id);	//喂狗
 					pthread_mutex_lock(&(route_mutex));
 					p = AccordSocketSeek(rws);
 					if(NULL == p)
 					{
+						//为本次连接上的套接字申请接受缓存
+						sp = (SocketRv *)malloc(sizeof(SocketRv));
+						if(NULL == sp)
+						{
+							perror("SocketRv");
+							close(rws);
+							pthread_mutex_unlock(&(route_mutex));
+							continue;
+						}
+						pthread_mutex_init(&(sp->analy_mutex), NULL);
+						//pthread_mutexattr_settype(&(sp->analy_mutex), PTHREAD_MUTEX_RECURSIVE_NP);
+						memset(sp, 0x00, sizeof(SocketRv));
+
 						if(NULL == AddRoute(temp_ter, rws, SOCKET_TICKER, (void*)sp))
 						{
 							printf("Add route erro\n");
@@ -443,6 +467,7 @@ void *NetWork0(void *arg)
 			}
 			else
 			{
+				feed_watch_dog(wdt_id);	//喂狗
 				pthread_mutex_lock(&(route_mutex));
 				ter_s = AccordSocketSeek(r_evt[i].data.fd);
 				pthread_mutex_unlock(&(route_mutex));
@@ -466,13 +491,19 @@ void *NetWork0(void *arg)
 						break;
 				}
 
-				if(len <= 0)
+				if(len < 0)
 				{
+					if(errno == EAGAIN)
+					{
+					        break;
+					}
+
 					if(0 > del_event(epollfd, r_evt[i].data.fd, EPOLLIN))
 					{
 						perror("del_event");
 					}
 					close(r_evt[i].data.fd);
+					feed_watch_dog(wdt_id);	//喂狗
 					pthread_mutex_lock(&(route_mutex));
 					AccordSocketDele(r_evt[i].data.fd);
 					pthread_mutex_unlock(&(route_mutex));
@@ -480,6 +511,7 @@ void *NetWork0(void *arg)
 					continue;
 				}
 
+				feed_watch_dog(wdt_id);	//喂狗
 				pthread_mutex_lock(&(s_rv->analy_mutex));
 				if(s_rv->w >= s_rv->r)  //写>=读
 				{
@@ -496,28 +528,24 @@ void *NetWork0(void *arg)
 
 					continue;
 				}
-				//写入数据
-				printf("up: ");
 				for(j=0; j<len; j++)
 				{
-					printf(" %02x",buf[j]);
 					s_rv->buff[s_rv->w] = buf[j];
 					s_rv->w++;
 					s_rv->w %= SOCKET_RV_MAX;
 				}
 
 				pthread_mutex_unlock(&(s_rv->analy_mutex));
-				printf("\n");
 
-//				struct timeval tv;
-//				gettimeofday(&tv, NULL);
-//				printf("up :   s:  %ld;  ms:  %ld\n",tv.tv_sec, (tv.tv_usec / 1000));
-
+				feed_watch_dog(wdt_id);	//喂狗
 				pthread_mutex_lock(&(route_mutex));
 				ter_s->ticker = SOCKET_TICKER;
 				UpdateTerSTime(ter_s);
 				pthread_mutex_unlock(&(route_mutex));
-				threadpool_add_job(_Threadpool, NetWorkJob0, (void*)ter_s);
+				if(-1 == threadpool_add_job(_Threadpool, NetWorkJob0, (void*)ter_s))
+				{
+					printf("up add job erro\n");
+				}
 			}
 		}
 	}

@@ -22,6 +22,8 @@ static struct initiative_stand _initiative_stand;		//定义主动台账
 static pthread_mutex_t _seek_amm_file_mutex;			//主动台账文件锁
 static struct seek_amm_task_queue _seek_amm_task_queue;	//定义搜表任务队列
 
+static struct seek_amm_task_exec _exec_seek;			//定义执行任务队列
+
 /*
  * 函数功能:初始化主动台账(只在开头调用一次)
  * */
@@ -36,7 +38,7 @@ void init_initiative_stand(void)
 	initiative_stand_file_add_to_memory();
 
 	pthread_t pt;
-	pthread_create(&pt, NULL, SeekAmm, NULL);
+	pthread_create(&pt, NULL, SeekAmmPthread, NULL);
 }
 
 /*
@@ -683,14 +685,80 @@ int creat_afn5_98(unsigned char *ter, unsigned char key, tpFrame376_1 *outbuf)
 }
 
 /*
+ * 函数功能:初始化执行任务队列
+ * */
+void init_exec_seek(void)
+{
+	_exec_seek.num = 0;
+	_exec_seek.frist = NULL;
+	_exec_seek.last = NULL;
+}
+
+int add_exec_seek(unsigned char *ter)
+{
+	struct seek_amm_ter *new_seek = (struct seek_amm_ter *)malloc(sizeof(struct seek_amm_ter));
+	if(NULL == new_seek)
+		return -1;
+
+	memcpy(new_seek->ter, ter, TER_ADDR_LEN);
+	new_seek->next = NULL;
+
+	if(0 == _exec_seek.num)	//第一次添加
+	{
+		_exec_seek.frist = new_seek;
+		_exec_seek.last = _exec_seek.frist;
+	}
+	else
+	{
+		_exec_seek.last->next = new_seek;
+		_exec_seek.last = new_seek;
+	}
+	_exec_seek.num++;
+
+	return 0;
+}
+
+int get_frist_exec_seek(unsigned char *ter)
+{
+	memset(ter, 0, TER_ADDR_LEN);
+	if(_exec_seek.num < 1)
+		return -1;
+	struct seek_amm_ter *temp;
+	if(1 == _exec_seek.num)
+	{
+		memcpy(ter, _exec_seek.frist->ter, TER_ADDR_LEN);
+		free(_exec_seek.frist);
+		_exec_seek.frist = NULL;
+		_exec_seek.last = NULL;
+	}
+	else
+	{
+		memcpy(ter, _exec_seek.frist->ter, TER_ADDR_LEN);
+		temp = _exec_seek.frist;
+		_exec_seek.frist = _exec_seek.frist->next;
+		free(temp);
+	}
+	_exec_seek.num--;
+	return 0;
+}
+
+int get_exec_seek_num(void)
+{
+	return _exec_seek.num;
+}
+
+/*
  * 函数功能:搜表任务线程
  * */
-void *SeekAmm(void *arg)
+void *SeekAmmPthread(void *arg)
 {
 	struct seek_amm_task *temp;
 	struct seek_amm_task *temp_temp;
 
+	unsigned char temp_ter[TER_ADDR_LEN] = {0};//备份的终端地址
+
 	seek_amm_task_queue_init();
+	init_exec_seek();
 
 	while(1)
 	{
@@ -740,46 +808,7 @@ void *SeekAmm(void *arg)
 			{
 				if(temp->ticker_ticker <= 0)
 				{
-//					printf("send seek amm task\n");
-					tpFrame376_1 outbuf;
-					tp3761Buffer snbuf;
-					TerSocket *p;
-					int ret = 0;
-					creat_afn5_98(temp->ter, 1, &outbuf);
-
-					//将3761格式数据转换为可发送二进制数据
-					DL3761_Protocol_LinkPack(&outbuf, &snbuf);
-					//差找对应的套接字
-					pthread_mutex_lock(&(route_mutex));
-					p = AccordTerSeek(temp->ter);
-					if(p != NULL)
-					{
-						pthread_mutex_lock(&(p->write_mutex));
-
-						int i = 0;
-						printf("**********\n");
-						for(i = 0; i < snbuf.Len; i++)
-							printf(" %02x",snbuf.Data[i]);
-						printf("\n");
-
-						while(1)
-						{
-							ret = write(p->s, snbuf.Data, snbuf.Len);
-							if(ret < 0)
-							{
-								break;
-							}
-							snbuf.Len -= ret;
-							if(0 == snbuf.Len)
-							{
-								break;
-							}
-						}
-						pthread_mutex_unlock(&(p->write_mutex));
-					}
-
-					pthread_mutex_unlock(&(route_mutex));
-
+					add_exec_seek(temp->ter);
 					temp->flag = 0x66;
 					temp->ticker = SEEK_AMM_TICKER;
 				}
@@ -792,8 +821,56 @@ void *SeekAmm(void *arg)
 				temp = temp_temp->next;
 			}
 		}
-
 		pthread_mutex_unlock(&_seek_amm_task_queue.mutex);
+
+		while(0 < get_exec_seek_num())	//执行搜表
+		{
+//					printf("send seek amm task\n");
+			tpFrame376_1 outbuf;
+			tp3761Buffer snbuf;
+			TerSocket *p;
+			int ret = 0;
+			get_frist_exec_seek(temp_ter);
+			creat_afn5_98(temp_ter, 1, &outbuf);
+
+			//将3761格式数据转换为可发送二进制数据
+			DL3761_Protocol_LinkPack(&outbuf, &snbuf);
+			//差找对应的套接字
+			pthread_mutex_lock(&(route_mutex));
+			p = AccordTerSeek(temp_ter);
+			if(p != NULL)
+			{
+				pthread_mutex_lock(&(p->write_mutex));
+
+//				int i = 0;
+//						printf("**********\n");
+//						for(i = 0; i < snbuf.Len; i++)
+//							printf(" %02x",snbuf.Data[i]);
+//						printf("\n");
+
+				while(1)
+				{
+					ret = write(p->s, snbuf.Data, snbuf.Len);
+					if(ret < 0)
+					{
+						if(errno == SIGPIPE)	//等待回收
+						{
+							p->ticker = 0;
+						}
+						break;
+					}
+					snbuf.Len -= ret;
+					if(0 == snbuf.Len)
+					{
+						break;
+					}
+				}
+				pthread_mutex_unlock(&(p->write_mutex));
+			}
+
+			pthread_mutex_unlock(&(route_mutex));
+		}
+
 	}
 
 	pthread_exit(NULL);

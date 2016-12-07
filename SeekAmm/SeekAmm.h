@@ -62,6 +62,19 @@ struct seek_amm_task_queue			//搜表任务队列
 	struct seek_amm_task *last;		//最后个任务
 };
 
+struct seek_amm_ter
+{
+	unsigned char ter[TER_ADDR_LEN];
+	struct seek_amm_ter *next;
+};
+
+struct seek_amm_task_exec
+{
+	int num;		//任务个数
+	struct seek_amm_ter *frist;
+	struct seek_amm_ter *last;
+};
+
 void init_initiative_stand(void);
 int destroy_initiative_stand_file(void);
 void initiative_stand_index_is_using(unsigned int index, char flag);
@@ -78,7 +91,7 @@ int add_seek_amm_task(struct seek_amm_task *task);
 int dele_seek_amm_task(unsigned char *ter);
 int find_seek_amm_task(unsigned char *ter, struct seek_amm_task *task);
 int judge_seek_amm_task(unsigned char *ter);
-void *SeekAmm(void *arg);
+void *SeekAmmPthread(void *arg);
 int seek_amm_task_empty(void);
 int get_seek_amm_task_num(void);
 int get_n_seek_amm_task(int n, struct seek_amm_task *task);

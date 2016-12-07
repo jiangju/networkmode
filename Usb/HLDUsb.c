@@ -97,15 +97,27 @@ int get_updatefile_nameandcrc(char *dname, char *name, unsigned short *crc)
 	}
 
 	if(95 == i)
+	{
+		fclose(fp);
 		return -1;
+	}
 	j = i;
 	j += 5;
 	if((j + LL_LL + V_LL) > 100)
+	{
+		fclose(fp);
 		return -1;
+	}
 	if(buf[j + LL_LL + V_LL] != ';')
+	{
+		fclose(fp);
 		return -1;
+	}
 	if(0 != update_name_inspect(buf + j))
+	{
+		fclose(fp);
 		return -1;
+	}
 	memcpy(name, buf + j, (LL_LL + V_LL));
 	i = j + LL_LL + V_LL;
 
@@ -118,15 +130,27 @@ int get_updatefile_nameandcrc(char *dname, char *name, unsigned short *crc)
 		i++;
 	}
 	if(96 == i)
+	{
+		fclose(fp);
 		return -1;
+	}
 	j = i;
 	j += 4;
 	if((j + 4) > 100)
+	{
+		fclose(fp);
 		return -1;
+	}
 	if(buf[j + 4] != ';')
+	{
+		fclose(fp);
 		return -1;
+	}
 	if(0 != update_crc_inspect(buf + j))
+	{
+		fclose(fp);
 		return -1;
+	}
 
 	*crc = 0;
 
@@ -135,6 +159,7 @@ int get_updatefile_nameandcrc(char *dname, char *name, unsigned short *crc)
 	*crc = ((*crc) * 16) + chars_to_char(buf[j+2]);
 	*crc = ((*crc) * 16) + chars_to_char(buf[j+3]);
 
+	fclose(fp);
 	return 0;
 }
 
@@ -154,7 +179,10 @@ int update_config_file(char *fname)
 	sprintf(str, "name:%s;\n",fname);
 	int ret = fwrite(str, 1, strlen(str),fp);
 	if(ret != strlen(str))
+	{
+		fclose(fp);
 		return -1;
+	}
 
 	//写入cs校验
 	memset(str, 0, 100);
@@ -162,7 +190,10 @@ int update_config_file(char *fname)
 	sprintf(str,"cs:%02x;",cs);
 	ret = fwrite(str, 1, strlen(str),fp);
 	if(ret != strlen(str))
+	{
+		fclose(fp);
 		return -1;
+	}
 
 	fclose(fp);
 	return 0;
@@ -204,13 +235,14 @@ int get_usb_dname(char *dname)
 		if(d->d_name[0] == 's' && d->d_name[1] == 'd')
 			break;
 	}
-
 	if(d == NULL)
 	{
 		printf("readdir err or read end\n");
+		closedir(dp);
 		return -1;
 	}
 	strcpy(dname, d->d_name);
+	closedir(dp);
 	return 0;
 }
 
@@ -225,6 +257,7 @@ void *pthread_usb(void *arg)
 	int wdt_id = *(int *)arg;
 	//
 	feed_watch_dog(wdt_id);	//喂狗
+	printf("USB _WDT ID %d\n", wdt_id);
 
 	char fname[20] = {0};		//文件名
 	unsigned short fcrc1 = 0;	//CRC校验码
@@ -262,40 +295,52 @@ void *pthread_usb(void *arg)
 					log_3762_task_stop(&_log_3762_task);
 					memset(dir1, 0, 100);
 					sprintf(dir1, "/media/%s/log/log1_1.txt",dname);
+					feed_watch_dog(wdt_id);
 					HLDFileCopy(LOG_3762_FILE0, dir1);
+
 					memset(dir1, 0, 100);
 					sprintf(dir1, "/media/%s/log/log1_2.txt",dname);
+					feed_watch_dog(wdt_id);
 					HLDFileCopy(LOG_3762_FILE1, dir1);
+
 					memset(dir1, 0, 100);
 					sprintf(dir1, "/media/%s/log/log1_3.txt",dname);
+					feed_watch_dog(wdt_id);
 					HLDFileCopy(LOG_3762_FILE2, dir1);
+
 					memset(dir1, 0, 100);
 					sprintf(dir1, "/media/%s/log/log1_4.txt",dname);
+					feed_watch_dog(wdt_id);
 					HLDFileCopy(LOG_3762_FILE3, dir1);
+
 					feed_watch_dog(wdt_id);
 					log_3762_task_start(&_log_3762_task);
 				}
-
 				if(0 == access(dir2, F_OK))
 				{
 					//获取升级文件配置路径
+					printf("update...\n");
 					sprintf(str3, "%s/config.txt",dir2);
+					feed_watch_dog(wdt_id);
 					if(0 == get_updatefile_nameandcrc(str3, fname, &fcrc1))
 					{
 						sprintf(str1, "/opt/%s",fname);
 						sprintf(str2,"%s/%s",dir2,fname);
+						feed_watch_dog(wdt_id);
 						if(0 == HLDFileCopy(str2, str1))
 						{
+							feed_watch_dog(wdt_id);
 							if(0 == get_file_crc(str1, &fcrc2))
 							{
 								if(fcrc2 == fcrc1)
 								{
+									feed_watch_dog(wdt_id);
 									update_config_file(fname);
 									//改变升级文件权限
 									memset(str1, 0, 100);
 									sprintf(str1, "chmod +x /opt/%s", fname);
 									system(str1);
-									while(1);	//升级成功  重启系统
+									system("reboot");	//升级成功  重启系统
 								}
 							}
 						}

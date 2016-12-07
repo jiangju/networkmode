@@ -166,24 +166,24 @@ int broadcast_buf_topup(unsigned char *inbuf, int len)
 	return 0;
 }
 
-/*
- * 函数功能:判断是否是充值终端需要的数据标识
- * 参数:	dadt	数据标识
- * 返回值: 0 需要  -1  不需要
- * */
-int top_jude_dadt(unsigned char *dadt)
-{
-	int i = 0;
-	for(i = 0; i < TOP_FIX_DADT_NUM; i++)
-	{
-		if(1 == CompareUcharArray((unsigned char *)_top_fix_dadt[i], dadt, DADT_LEN))
-		{
-			return 0;
-		}
-	}
-
-	return -1;
-}
+///*
+// * 函数功能:判断是否是充值终端需要的数据标识
+// * 参数:	dadt	数据标识
+// * 返回值: 0 需要  -1  不需要
+// * */
+//int top_jude_dadt(unsigned char *dadt)
+//{
+//	int i = 0;
+//	for(i = 0; i < TOP_FIX_DADT_NUM; i++)
+//	{
+//		if(1 == CompareUcharArray((unsigned char *)_top_fix_dadt[i], dadt, DADT_LEN))
+//		{
+//			return 0;
+//		}
+//	}
+//
+//	return -1;
+//}
 
 /*
  * 函数功能:透明转发
@@ -204,8 +204,6 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 	struct topup_node *pp;
 	unsigned char ter[4] = {0};
 	int ret = 0;
-	int i = 3;
-	int fd;
 	int is_true = -1;
 	//判断来自充值终端还是电表的三网合一
 	if(rvframe3761->Frame376_1Link.CtlField.PRM == 0)	//从动站（电表）
@@ -241,20 +239,9 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 			//终端地址与台账中的终端地址不同
 			if(1 != CompareUcharArray(node.Ter, ter, TER_ADDR_LEN))
 			{
-				//打开文件
-				while(i--)
-				{
-					fd = open(STAND_BOOK_FILE, O_RDWR);
-					if(fd >=0 )
-						break;
-				}
-				if(fd >= 0)
-				{
-					memcpy(node.Ter, ter, TER_ADDR_LEN);
-					UpdateStandNode(ret, &node);
-					AlterNodeStandFile(fd, &node);
-					close(fd);
-				}
+				memcpy(node.Ter, ter, TER_ADDR_LEN);
+				UpdateStandNode(ret, &node);
+				AlterNodeStandFile(&node);
 			}
 
 			//判断充值任务
@@ -276,19 +263,22 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 				DL3761_Protocol_LinkPack(&snframe3761, &ttpbuffer);
 				pthread_mutex_lock(&(topup_node_mutex));
 				pp = AccordTerFind(node_p->task_status.top_ter);
-				pthread_mutex_lock(&(pp->write_mutex));
-				while(1)
+				if(NULL != pp)
 				{
-					ret = write(pp->s, ttpbuffer.Data, ttpbuffer.Len);
-					if(ret < 0)
+					pthread_mutex_lock(&(pp->write_mutex));
+					while(1)
 					{
-						break;
+						ret = write(pp->s, ttpbuffer.Data, ttpbuffer.Len);
+						if(ret < 0)
+						{
+							break;
+						}
+						ttpbuffer.Len -= ret;
+						if(0 == ttpbuffer.Len)
+							break;
 					}
-					ttpbuffer.Len -= ret;
-					if(0 == ttpbuffer.Len)
-						break;
+					pthread_mutex_unlock(&(pp->write_mutex));
 				}
-				pthread_mutex_unlock(&(pp->write_mutex));
 				pthread_mutex_unlock(&(topup_node_mutex));
 //				struct timeval tv;
 //				gettimeofday(&tv, NULL);
@@ -427,7 +417,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 
 				memcpy(f645.Address, frame645.Address, AMM_ADDR_LEN);
 				f645.CtlField = 0xD1;
-
+				printf("add top up task err %d\n", ret);
 				switch (ret)
 				{
 					case -1:
@@ -452,23 +442,24 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 					DL3761_Protocol_LinkPack(&snframe3761, &ttpbuffer);
 					pthread_mutex_lock(&(topup_node_mutex));
 					pp = AccordTerFind(top_ter);
-					pthread_mutex_lock(&(pp->write_mutex));
-					while(1)
+					if(NULL != pp)
 					{
-						ret = write(pp->s, ttpbuffer.Data, ttpbuffer.Len);
-						if(ret < 0)
+						pthread_mutex_lock(&(pp->write_mutex));
+						while(1)
 						{
-							break;
+							ret = write(pp->s, ttpbuffer.Data, ttpbuffer.Len);
+							if(ret < 0)
+							{
+								break;
+							}
+							ttpbuffer.Len -= ret;
+							if(0 == ttpbuffer.Len)
+								break;
 						}
-						ttpbuffer.Len -= ret;
-						if(0 == ttpbuffer.Len)
-							break;
+						pthread_mutex_unlock(&(pp->write_mutex));
 					}
-					pthread_mutex_unlock(&(pp->write_mutex));
 					pthread_mutex_unlock(&(topup_node_mutex));
 				}
-
-				printf("add top up task err\n");
 			}
 		}
 	}
