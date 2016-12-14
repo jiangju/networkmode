@@ -17,6 +17,7 @@
 #include "CommLib.h"
 #include "DL376_1_DataType.h"
 #include "EncryptionData.h"
+#include "SysPara.h"
 #undef ENCRYPTIONDATA_C_
 
 unsigned char PADDING[]={0x80,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,

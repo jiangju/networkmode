@@ -13,56 +13,43 @@
 #include <errno.h>
 #include <signal.h>
 
-typedef struct route_node
+typedef struct s_node
 {
 	unsigned char Ter[TER_ADDR_LEN];	//终端地址
 	int	s;								//套接字
 	unsigned char last_t[TIME_FRA_LEN];	//最后一次通信时间
 	int ticker;							//心跳倒计时
-	void *rvaddr;						//接受缓存在堆中的位置
-	pthread_mutex_t write_mutex;		//写socket时的互斥信号量
-	struct route_node *next;			//下一个节点
-}TerSocket;								//终端地址对应套接字
+	pthread_mutex_t smutex;				//写socket时的互斥信号量
+	pthread_mutex_t mmutex;				//访问节点锁
+	struct s_node *next;				//下一个节点
+}route_node;
 
-struct route_recycle_node
+typedef struct
 {
-	struct route_node *route_node;		//路由节点地址
-	int ticker;							//回收倒计时
-	struct route_recycle_node *next;	//下一个待回收节点
-};										//待回收的路由节点
+	int num;							//节点个数
+	route_node *frist;					//第一个节点
+	route_node *last;					//最后一个节点
+	pthread_rwlock_t rwlock;			//锁
+}hld_route;
 
-#define ROUTE_RECYCLE_TICKER	10		//路由回收倒计时  10S
+void init_hld_route(void);
+int add_hld_route_node(int s);
+int dele_hld_route_node_s(int s);
+int dele_hld_route_node_ter(unsigned char *ter);
+int del_hld_route_node_ter_ter(unsigned char *ter);
+int check_hld_route_node_s_ter(int s, unsigned char *ter);
+int check_hld_route_node_s(int s);
+int check_hld_route_node_ter(unsigned char *ter);
+int update_hld_route_node_s_ter(int s, unsigned char *ter);
+int update_hld_route_node_s_ticker(int s, int ticker);
+int update_hld_route_node_s_stime(int s);
+int send_hld_route_node_s_data(int s, unsigned char *inbuf, int len);
+int send_hld_route_node_ter_data(unsigned char *ter, unsigned char *inbuf, int len);
 
-#ifdef _ROUTE_C_
+int get_hld_route_node_num(void);
+int get_hld_route_node_ter_lstime(int num, unsigned char *ter, unsigned char *lstime);
+int get_hld_route_node_ter(int num, unsigned char *ter);
 
-TerSocket *_FristNode;			//第一个路由节点地址
-pthread_mutex_t route_mutex;	//路由锁
-
-struct route_recycle_node *_FristRecycleNode;	//第一个回收节点
-pthread_mutex_t _route_recycle_mutex;			//回收路由节点链表锁
-
-#endif
-
-TerSocket *AccordTerSeek(unsigned char *ter);
-TerSocket *AccordSocketSeek(int s);
-TerSocket *AccordNumSeek(int num);
-TerSocket *AddRoute(unsigned char *ter, int s, int ticker, void *addr);
-void AccordSocketDele(int s);
-void AccordTerDele(unsigned char *ter);
-int AddRouteRecycle(struct route_node *node, int ticker);
-void *RouteNodeMemRecycle(void *arg);
-unsigned short RouteSocketNum();
-int UpdateTerSTime(TerSocket * ter_s);
-//void AccordTickerDele(TerSocket *frist);
-
-#ifndef _ROUTE_C_
-
-extern TerSocket *_FristNode;		//第一个路由节点地址
-extern pthread_mutex_t route_mutex;	//路由锁
-
-extern struct route_recycle_node *_FristRecycleNode;	//第一个回收节点
-extern pthread_mutex_t _route_recycle_mutex;			//回收路由节点链表锁
-
-#endif
-
+/**********************************************************************/
+void *SocketTicker(void *arg);
 #endif /* ROUTE_ROUTE_H_ */

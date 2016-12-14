@@ -406,6 +406,7 @@ int ProtoAnaly_Get376_1BufFromCycBuf(unsigned char *inbuf, unsigned short maxlen
 	int i = 0;
 	if(rr == ww)
 	{
+//		printf("input rr eq ww\n");
 		return -1;
 	}
 	memset(outbuf, 0x00, sizeof(tp3761Buffer));
@@ -437,7 +438,7 @@ int ProtoAnaly_Get376_1BufFromCycBuf(unsigned char *inbuf, unsigned short maxlen
 			}
 			if(l < FRMLEN_EMPTY1)
 			{
-
+//				printf("data len < 16\n");
 				return -1;
 			}
 

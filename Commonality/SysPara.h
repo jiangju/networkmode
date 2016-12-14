@@ -18,7 +18,7 @@
 #define	VERSION_DATE1	0x06	//版本日期	月
 #define	VERSION_DATE2	0x16	//版本日期	年
 
-#define	VERSION_NUM0	0x01	//版本号
+#define	VERSION_NUM0	0x02	//版本号
 #define	VERSION_NUM1	0x00	//版本号
 
 #define TOP_FIX_DADT_NUM	15	//充值终端需要的数据标识个数
@@ -42,6 +42,18 @@
 #define AMM_MAX_NUM		2040	//电表最大数量
 
 #define TER_UNDER_AMM_MAX		192	//终端下电表最大个数
+
+#define SOCKET_RV_MAX	1024			//套接字接受最大字节数
+#define SOCKET_TICKER	300				//套接字心跳倒计时
+#define NETWORK_MAX_CONNCET	600			//socket最大连接数
+typedef enum
+{
+	INFR 	= 0x11,	//红外
+	THR 	= 0x22,	//三网合一
+	TOPUP	= 0x33,	//充值终端
+	UST		= 0x44,	//串口
+	ZHU		= 0x55,	//主站
+}enDEV;				//设备类型
 
 typedef struct
 {

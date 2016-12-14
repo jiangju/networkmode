@@ -1,46 +1,46 @@
-
 /*
- * Route.c
+ * TopRoute.c
  *
- *  Created on: 2016年6月29日
+ *  Created on: 2016年12月12日
  *      Author: j
  */
-#include "Route.h"
 #include <string.h>
 #include <stdlib.h>
 #include "CommLib.h"
+#include <stdio.h>
 #include <error.h>
 #include <unistd.h>
 #include "HLDWatchDog.h"
 #include <sys/time.h>
 #include "HLDTcp.h"
 #include "errno.h"
-#include "RevBuf.h"
+#include "TopRoute.h"
+#include "TopBuf.h"
 
-static hld_route _hld_route;
+static hld_top _hld_top;
 
 /*
  * 函数功能:初始化华立达路由链表
  * */
-void init_hld_route(void)
+void init_hld_top(void)
 {
-	_hld_route.num = 0;
-	_hld_route.frist = NULL;
-	_hld_route.last = NULL;
-	pthread_rwlock_init(&_hld_route.rwlock, NULL);
+	_hld_top.num = 0;
+	_hld_top.frist = NULL;
+	_hld_top.last = NULL;
+	pthread_rwlock_init(&_hld_top.rwlock, NULL);
 }
 
 /*
- * 函数功能:根据套接字添加路由节点
+ * 函数功能:根据套接字添加充值节点
  * 参数:		s 	套接字
  * 返回值: 0成功  -1失败
  * */
-int add_hld_route_node(int s)
+int add_hld_top_node(int s)
 {
-	route_node *node = (route_node*)malloc(sizeof(route_node));
+	top_node *node = (top_node*)malloc(sizeof(top_node));
 	if(NULL == node)
 	{
-		perror("malloc route_node:");
+		perror("malloc top_node:");
 		return -1;
 	}
 
@@ -52,39 +52,39 @@ int add_hld_route_node(int s)
 	pthread_mutex_init(&(node->smutex), NULL);	//初始化socket发送锁
 	pthread_mutex_init(&(node->mmutex), NULL);	//访问节点锁
 	//添加
-	pthread_rwlock_wrlock(&_hld_route.rwlock);
+	pthread_rwlock_wrlock(&_hld_top.rwlock);
 
-	if(0 >= _hld_route.num)	//第一次添加
+	if(0 >= _hld_top.num)	//第一次添加
 	{
-		_hld_route.frist = node;
-		_hld_route.last = node;
-		_hld_route.num = 1;
+		_hld_top.frist = node;
+		_hld_top.last = node;
+		_hld_top.num = 1;
 	}
 	else					//非第一次添加
 	{
-		_hld_route.last->next = node;
-		_hld_route.last = node;
-		_hld_route.num++;
+		_hld_top.last->next = node;
+		_hld_top.last = node;
+		_hld_top.num++;
 	}
 
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 
 	return 0;
 }
 
 /*
- * 函数功能:根据socket关闭路由节点及回收资源
+ * 函数功能:根据socket关闭充值节点及回收资源
  * 参数：	s		套接字
  * 返回值:	0成功 -1失败
  * */
-int dele_hld_route_node_s(int s)
+int dele_hld_top_node_s(int s)
 {
-	route_node *temp = NULL;
-	route_node *last_temp = NULL;
+	top_node *temp = NULL;
+	top_node *last_temp = NULL;
 	int ret = -1;
-	pthread_rwlock_wrlock(&_hld_route.rwlock);
+	pthread_rwlock_wrlock(&_hld_top.rwlock);
 
-	temp = _hld_route.frist;
+	temp = _hld_top.frist;
 	last_temp = temp;
 	while(NULL != temp)		//查找对应socket
 	{
@@ -100,16 +100,16 @@ int dele_hld_route_node_s(int s)
 	}
 	else
 	{
-		if(temp == _hld_route.frist)	//删除第一个
+		if(temp == _hld_top.frist)	//删除第一个
 		{
-			if(_hld_route.last == _hld_route.frist)
+			if(_hld_top.last == _hld_top.frist)
 			{
-				_hld_route.frist = NULL;
-				_hld_route.last = NULL;
+				_hld_top.frist = NULL;
+				_hld_top.last = NULL;
 			}
 			else
 			{
-				_hld_route.frist = _hld_route.frist->next;
+				_hld_top.frist = _hld_top.frist->next;
 			}
 			pthread_mutex_destroy(&temp->mmutex);
 			pthread_mutex_destroy(&temp->smutex);
@@ -118,9 +118,9 @@ int dele_hld_route_node_s(int s)
 		}
 		else
 		{
-			if(temp == _hld_route.last)
+			if(temp == _hld_top.last)
 			{
-				_hld_route.last = last_temp;
+				_hld_top.last = last_temp;
 			}
 			last_temp->next = temp->next;
 			pthread_mutex_destroy(&temp->mmutex);
@@ -128,24 +128,24 @@ int dele_hld_route_node_s(int s)
 			close(temp->s);
 			free(temp);
 		}
-		_hld_route.num--;
+		_hld_top.num--;
 	}
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 	return ret;
 }
 
 /*
- * 函数功能:根据终端地址关闭路由几点及回收资源
+ * 函数功能:根据终端地址充值节点及回收资源
  * 参数: ter		终端地址
  * 返回值: 0成功  -1失败
  * */
-int dele_hld_route_node_ter(unsigned char *ter)
+int dele_hld_top_node_ter(unsigned char *ter)
 {
-	route_node *temp = NULL;
-	route_node *last_temp = NULL;
+	top_node *temp = NULL;
+	top_node *last_temp = NULL;
 	int ret = 0;
-	pthread_rwlock_wrlock(&_hld_route.rwlock);
-	temp = _hld_route.frist;
+	pthread_rwlock_wrlock(&_hld_top.rwlock);
+	temp = _hld_top.frist;
 	last_temp = temp;
 	while(NULL != temp)		//查找对应socket
 	{
@@ -161,16 +161,16 @@ int dele_hld_route_node_ter(unsigned char *ter)
 	}
 	else
 	{
-		if(temp == _hld_route.frist)	//删除第一个
+		if(temp == _hld_top.frist)	//删除第一个
 		{
-			if(_hld_route.last == _hld_route.frist)
+			if(_hld_top.last == _hld_top.frist)
 			{
-				_hld_route.frist = NULL;
-				_hld_route.last = NULL;
+				_hld_top.frist = NULL;
+				_hld_top.last = NULL;
 			}
 			else
 			{
-				_hld_route.frist = _hld_route.frist->next;
+				_hld_top.frist = _hld_top.frist->next;
 			}
 			pthread_mutex_destroy(&temp->mmutex);
 			pthread_mutex_destroy(&temp->smutex);
@@ -179,9 +179,9 @@ int dele_hld_route_node_ter(unsigned char *ter)
 		}
 		else
 		{
-			if(temp == _hld_route.last)
+			if(temp == _hld_top.last)
 			{
-				_hld_route.last = last_temp;
+				_hld_top.last = last_temp;
 			}
 			last_temp->next = temp->next;
 			pthread_mutex_destroy(&temp->mmutex);
@@ -189,9 +189,9 @@ int dele_hld_route_node_ter(unsigned char *ter)
 			close(temp->s);
 			free(temp);
 		}
-		_hld_route.num--;
+		_hld_top.num--;
 	}
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 
 	return ret;
 }
@@ -202,12 +202,12 @@ int dele_hld_route_node_ter(unsigned char *ter)
  * 			ter	终端地址
  * 返回值: 0 在同一节点  -1不在同一节点
  * */
-int check_hld_route_node_s_ter(int s, unsigned char *ter)
+int check_hld_top_node_s_ter(int s, unsigned char *ter)
 {
 	int ret = 0;
-	route_node *temp = NULL;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	temp = _hld_route.frist;
+	top_node *temp = NULL;
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	temp = _hld_top.frist;
 	while(NULL != temp)
 	{
 		if(temp->s == s)
@@ -223,7 +223,7 @@ int check_hld_route_node_s_ter(int s, unsigned char *ter)
 			ret = -1;
 		pthread_mutex_unlock(&temp->mmutex);
 	}
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 	return ret;
 }
 
@@ -232,12 +232,12 @@ int check_hld_route_node_s_ter(int s, unsigned char *ter)
  * 参数:		ter		终端地址
  * 返回值: 0成功  -1失败
  * */
-int del_hld_route_node_ter_ter(unsigned char *ter)
+int del_hld_top_node_ter_ter(unsigned char *ter)
 {
 	int ret = 0;
-	route_node *temp = NULL;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	temp = _hld_route.frist;
+	top_node *temp = NULL;
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	temp = _hld_top.frist;
 	while(NULL != temp)
 	{
 		if(1 == CompareUcharArray(ter, temp->Ter, TER_ADDR_LEN))
@@ -252,22 +252,22 @@ int del_hld_route_node_ter_ter(unsigned char *ter)
 		memset(temp->Ter, 0xFF, TER_ADDR_LEN);
 		pthread_mutex_unlock(&temp->mmutex);
 	}
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 
 	return ret;
 }
 
 /*
- * 函数功能:查看路由链表中是否有该套接字
+ * 函数功能:查看充值链表中是否有该套接字
  * 参数:		s	套接字
  * 返回值: 0存在  -1不存在
  * */
-int check_hld_route_node_s(int s)
+int check_hld_top_node_s(int s)
 {
-	route_node *temp = NULL;
+	top_node *temp = NULL;
 	int ret = 0;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	temp = _hld_route.frist;
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	temp = _hld_top.frist;
 	while(NULL != temp)
 	{
 		if(temp->s == s)
@@ -276,21 +276,21 @@ int check_hld_route_node_s(int s)
 	}
 	if(NULL == temp)
 		ret = -1;
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 	return ret;
 }
 
 /*
- * 函数功能:查看路由链表中是否有该终端
+ * 函数功能:查看充值链表中是否有该终端
  * 参数:		ter		终端地址
  * 返回值: 0 存在		-1 不存在
  * */
-int check_hld_route_node_ter(unsigned char *ter)
+int check_hld_top_node_ter(unsigned char *ter)
 {
 	int ret = 0;
-	route_node *temp = NULL;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	temp = _hld_route.frist;
+	top_node *temp = NULL;
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	temp = _hld_top.frist;
 	while(NULL != temp)
 	{
 		if(1 == CompareUcharArray(ter, temp->Ter, TER_ADDR_LEN))
@@ -299,7 +299,7 @@ int check_hld_route_node_ter(unsigned char *ter)
 	}
 	if(NULL == temp)
 		ret = -1;
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 	return ret;
 }
 
@@ -309,12 +309,12 @@ int check_hld_route_node_ter(unsigned char *ter)
  * 			ter	终端地址
  * 返回值:	0 成功 -1失败
  * */
-int update_hld_route_node_s_ter(int s, unsigned char *ter)
+int update_hld_top_node_s_ter(int s, unsigned char *ter)
 {
-	route_node *temp = NULL;
+	top_node *temp = NULL;
 	int ret = 0;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	temp = _hld_route.frist;
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	temp = _hld_top.frist;
 	while(NULL != temp)
 	{
 		if(temp->s == s)
@@ -329,7 +329,7 @@ int update_hld_route_node_s_ter(int s, unsigned char *ter)
 		memcpy(temp->Ter, ter, TER_ADDR_LEN);
 		pthread_mutex_unlock(&temp->mmutex);
 	}
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 	return ret;
 }
 
@@ -339,12 +339,12 @@ int update_hld_route_node_s_ter(int s, unsigned char *ter)
  * 			ticker	心跳倒计时
  * 返回值:0 成功  -1失败
  * */
-int update_hld_route_node_s_ticker(int s, int ticker)
+int update_hld_top_node_s_ticker(int s, int ticker)
 {
-	route_node *temp = NULL;
+	top_node *temp = NULL;
 	int ret = 0;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	temp = _hld_route.frist;
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	temp = _hld_top.frist;
 	while(NULL != temp)
 	{
 		if(temp->s == s)
@@ -359,7 +359,7 @@ int update_hld_route_node_s_ticker(int s, int ticker)
 		temp->ticker = ticker;
 		pthread_mutex_unlock(&temp->mmutex);
 	}
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 
 	return ret;
 }
@@ -369,12 +369,12 @@ int update_hld_route_node_s_ticker(int s, int ticker)
  * 参数:		s		套接字
  * 返回值: 0成功  -1失败
  * */
-int update_hld_route_node_s_stime(int s)
+int update_hld_top_node_s_stime(int s)
 {
-	route_node *temp = NULL;
+	top_node *temp = NULL;
 	int ret = 0;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	temp = _hld_route.frist;
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	temp = _hld_top.frist;
 	while(NULL != temp)
 	{
 		if(temp->s == s)
@@ -404,7 +404,7 @@ int update_hld_route_node_s_stime(int s)
 		temp->last_t[5] = HexToBcd(t_tm->tm_sec);
 		pthread_mutex_unlock(&temp->mmutex);
 	}
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 
 	return ret;
 }
@@ -416,13 +416,13 @@ int update_hld_route_node_s_stime(int s)
  * 			len		发送数据长度
  * 返回值: <0 失败  >=0成功
  * */
-int send_hld_route_node_s_data(int s, unsigned char *inbuf, int len)
+int send_hld_top_node_s_data(int s, unsigned char *inbuf, int len)
 {
-	route_node *temp = NULL;
+	top_node *temp = NULL;
 	int flag = 0;
 	int ret = 0;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	temp = _hld_route.frist;
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	temp = _hld_top.frist;
 	while(NULL != temp)
 	{
 		if(temp->s == s)
@@ -455,13 +455,13 @@ int send_hld_route_node_s_data(int s, unsigned char *inbuf, int len)
 
 		pthread_mutex_unlock(&temp->smutex);
 	}
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 
 	if(1 == flag)
 	{
 		del_event(_epollfd, temp->s, EPOLLIN);
-		dele_hld_route_node_s(temp->s);
-		del_hld_rv_s(temp->s);
+		dele_hld_top_node_s(temp->s);
+		del_hld_top_rv_s(temp->s);
 		ret = -1;
 	}
 	return ret;
@@ -474,13 +474,13 @@ int send_hld_route_node_s_data(int s, unsigned char *inbuf, int len)
  * 			len		发送数据长度
  * 返回值: <0 失败  >=0成功
  * */
-int send_hld_route_node_ter_data(unsigned char *ter, unsigned char *inbuf, int len)
+int send_hld_top_node_ter_data(unsigned char *ter, unsigned char *inbuf, int len)
 {
 	int flag = 0;
-	route_node *temp = NULL;
+	top_node *temp = NULL;
 	int ret = 0;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	temp = _hld_route.frist;
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	temp = _hld_top.frist;
 	while(NULL != temp)
 	{
 		if(1 == CompareUcharArray(ter, temp->Ter, TER_ADDR_LEN))
@@ -513,12 +513,12 @@ int send_hld_route_node_ter_data(unsigned char *ter, unsigned char *inbuf, int l
 
 		pthread_mutex_unlock(&temp->smutex);
 	}
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 	if(1 == flag)
 	{
 		del_event(_epollfd, temp->s, EPOLLIN);
-		dele_hld_route_node_s(temp->s);
-		del_hld_rv_s(temp->s);
+		dele_hld_top_node_s(temp->s);
+		del_hld_top_rv_s(temp->s);
 		ret = -1;
 	}
 	return ret;
@@ -529,35 +529,35 @@ int send_hld_route_node_ter_data(unsigned char *ter, unsigned char *inbuf, int l
  * 函数功能:获取节点总数量
  * 返回值: 节点数量
  * */
-int get_hld_route_node_num(void)
+int get_hld_top_node_num(void)
 {
 	int ret = 0;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	ret = _hld_route.num;
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	ret = _hld_top.num;
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 	return ret;
 }
 
 /*
- * 函数功能:路由链表节点序号获取终端相应数据
+ * 函数功能:充值链表节点序号获取终端相应数据
  * 参数:		num		序号
  * 			ter		输出终端地址
  * 			lstime	最后通信时间
  * 返回值: 0成功  -1失败
  * */
-int get_hld_route_node_ter_lstime(int num, unsigned char *ter, unsigned char *lstime)
+int get_hld_top_node_ter_lstime(int num, unsigned char *ter, unsigned char *lstime)
 {
-	route_node *temp = NULL;
+	top_node *temp = NULL;
 	int ret = 0;
 	int i = 0;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	if(num > _hld_route.num)
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	if(num > _hld_top.num)
 	{
 		ret = -1;
 	}
 	else
 	{
-		temp = _hld_route.frist;
+		temp = _hld_top.frist;
 		for(i = 1; i < num; i++)
 		{
 			temp = temp->next;
@@ -568,29 +568,29 @@ int get_hld_route_node_ter_lstime(int num, unsigned char *ter, unsigned char *ls
 		pthread_mutex_unlock(&temp->mmutex);
 	}
 
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 	return ret;
 }
 
 /*
- * 函数功能:路由链表节点序号获取终端地址
+ * 函数功能:充值链表节点序号获取终端地址
  * 参数:		num		序号
  * 			ter		输出终端地址
  * 返回值: 0成功  -1失败
  * */
-int get_hld_route_node_ter(int num, unsigned char *ter)
+int get_hld_top_node_ter(int num, unsigned char *ter)
 {
-	route_node *temp = NULL;
+	top_node *temp = NULL;
 	int ret = 0;
 	int i = 0;
-	pthread_rwlock_rdlock(&_hld_route.rwlock);
-	if(num > _hld_route.num)
+	pthread_rwlock_rdlock(&_hld_top.rwlock);
+	if(num > _hld_top.num)
 	{
 		ret = -1;
 	}
 	else
 	{
-		temp = _hld_route.frist;
+		temp = _hld_top.frist;
 		for(i = 1; i < num; i++)
 		{
 			temp = temp->next;
@@ -600,7 +600,7 @@ int get_hld_route_node_ter(int num, unsigned char *ter)
 		pthread_mutex_unlock(&temp->mmutex);
 	}
 
-	pthread_rwlock_unlock(&_hld_route.rwlock);
+	pthread_rwlock_unlock(&_hld_top.rwlock);
 	return ret;
 }
 
@@ -608,11 +608,11 @@ int get_hld_route_node_ter(int num, unsigned char *ter)
  * 函数功能:心跳倒计时监控线程
  * 参数:	arg	传递epoll监控集合句柄
  * */
-void *SocketTicker(void *arg)
+void *TopSocketTicker(void *arg)
 {
 	int epoll_fd = *(int *)arg;
-	route_node *temp = NULL;
-	route_node *last_temp = NULL;
+	top_node *temp = NULL;
+	top_node *last_temp = NULL;
 	//申请看门狗
 	int wdt_id = 0;
 	wdt_id = apply_watch_dog();
@@ -621,7 +621,7 @@ void *SocketTicker(void *arg)
 		printf("usart0 apply dog error\n");
 		system("reboot");
 	}
-	printf("NETWOER0  SOCKER　TICKER WDT ID %d\n", wdt_id);
+	printf("NETWOER1  SOCKER　TICKER WDT ID %d\n", wdt_id);
 	//设置看门狗
 	set_watch_dog(wdt_id, 10);
 
@@ -631,52 +631,52 @@ void *SocketTicker(void *arg)
 
 		sleep(1);
 		feed_watch_dog(wdt_id);	//喂狗
-		pthread_rwlock_wrlock(&_hld_route.rwlock);
-		printf("NUM: %d\n",_hld_route.num);
+		pthread_rwlock_wrlock(&_hld_top.rwlock);
+		printf("TOP NUM: %d\n",_hld_top.num);
 
-		temp = _hld_route.frist;
+		temp = _hld_top.frist;
 		last_temp = temp;
 		while(NULL != temp)
 		{
 			if(0 >= temp->ticker)
 			{
 				printf("socket :ticker timer\n");
-				if(temp == _hld_route.frist)	//删除第一个
+				if(temp == _hld_top.frist)	//删除第一个
 				{
-					if(_hld_route.last == _hld_route.frist)
+					if(_hld_top.last == _hld_top.frist)
 					{
-						_hld_route.frist = NULL;
-						_hld_route.last = NULL;
+						_hld_top.frist = NULL;
+						_hld_top.last = NULL;
 					}
 					else
 					{
-						_hld_route.frist = _hld_route.frist->next;
+						_hld_top.frist = _hld_top.frist->next;
 					}
 					pthread_mutex_destroy(&temp->mmutex);
 					pthread_mutex_destroy(&temp->smutex);
 					del_event(epoll_fd, temp->s, EPOLLIN);
-					del_hld_rv_s(temp->s);
+					del_hld_top_rv_s(temp->s);
 					close(temp->s);
 					free(temp);
-					temp = _hld_route.frist;
+					temp = _hld_top.frist;
 					last_temp = temp;
 				}
 				else
 				{
 					last_temp->next = temp->next;
-					if(temp == _hld_route.last)
+					if(temp == _hld_top.last)
 					{
-						_hld_route.last = last_temp;
+						_hld_top.last = last_temp;
 					}
 					pthread_mutex_destroy(&temp->mmutex);
 					pthread_mutex_destroy(&temp->smutex);
 					del_event(epoll_fd, temp->s, EPOLLIN);
-					del_hld_rv_s(temp->s);
+					del_hld_top_rv_s(temp->s);
 					close(temp->s);
 					free(temp);
 					temp = last_temp->next;
 				}
-				_hld_route.num--;
+				_hld_top.num--;
 			}
 			else
 			{
@@ -686,7 +686,7 @@ void *SocketTicker(void *arg)
 			}
 		}
 
-		pthread_rwlock_unlock(&_hld_route.rwlock);
+		pthread_rwlock_unlock(&_hld_top.rwlock);
 	}
 	pthread_exit(NULL);
 }

@@ -569,6 +569,7 @@ int get_n_seek_amm_task(int n, struct seek_amm_task *task)
 	struct seek_amm_task *temp;
 	pthread_mutex_lock(&_seek_amm_task_queue.mutex);
 	temp = _seek_amm_task_queue.frist;
+
 	while(NULL != temp)
 	{
 		n--;
@@ -828,47 +829,13 @@ void *SeekAmmPthread(void *arg)
 //					printf("send seek amm task\n");
 			tpFrame376_1 outbuf;
 			tp3761Buffer snbuf;
-			TerSocket *p;
-			int ret = 0;
 			get_frist_exec_seek(temp_ter);
 			creat_afn5_98(temp_ter, 1, &outbuf);
 
 			//将3761格式数据转换为可发送二进制数据
 			DL3761_Protocol_LinkPack(&outbuf, &snbuf);
 			//差找对应的套接字
-			pthread_mutex_lock(&(route_mutex));
-			p = AccordTerSeek(temp_ter);
-			if(p != NULL)
-			{
-				pthread_mutex_lock(&(p->write_mutex));
-
-//				int i = 0;
-//						printf("**********\n");
-//						for(i = 0; i < snbuf.Len; i++)
-//							printf(" %02x",snbuf.Data[i]);
-//						printf("\n");
-
-				while(1)
-				{
-					ret = write(p->s, snbuf.Data, snbuf.Len);
-					if(ret < 0)
-					{
-						if(errno == SIGPIPE)	//等待回收
-						{
-							p->ticker = 0;
-						}
-						break;
-					}
-					snbuf.Len -= ret;
-					if(0 == snbuf.Len)
-					{
-						break;
-					}
-				}
-				pthread_mutex_unlock(&(p->write_mutex));
-			}
-
-			pthread_mutex_unlock(&(route_mutex));
+			send_hld_route_node_ter_data(temp_ter, snbuf.Data, snbuf.Len);
 		}
 
 	}

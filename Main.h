@@ -36,4 +36,7 @@
 #include "log3762.h"
 #include "SeekAmm.h"
 #include "hld_ac.h"
+#include "RevBuf.h"
+#include "TopBuf.h"
+#include "TopRoute.h"
 #endif /* MAIN_H_ */

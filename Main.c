@@ -627,14 +627,6 @@ void GetAmmStandBook(void)
  * */
 void GlobalVariableInit(void)
 {
-	//路由第一个节点地址
-	_FristNode = NULL;
-	//待回收路由节点第一个节点地址
-	_FristRecycleNode = NULL;
-	//充值终端第一个节点地址
-	_FristTop = NULL;
-	//待回收充值终端节点第一个节点地址
-	_FristRecycleTopNode = NULL;
 	//线程池地址
 	_Threadpool = NULL;
 }
@@ -647,9 +639,24 @@ void NetworkModeInit(void)
 	//全局变量初始化
 	GlobalVariableInit();
 
+	//初始化路由链表
+	init_hld_route();
+
+	//初始化接收缓存链表
+	init_hld_rv();
+
+	//初始化充值节点链表
+	init_hld_top();
+
+	//初始化充值接受链表
+	init_hld_top_rv();
+
+	//初始化台账变量
 	HldStandInit();
+
 	//初始化台账节点数量
 	StandNodeNumInit();
+
 	//初始化台账文件空余位置标志
 	StandFileAllSurplus();
 

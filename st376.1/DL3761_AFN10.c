@@ -25,6 +25,10 @@
 #include <stdlib.h>
 #include "DL3762_AFN02.h"
 #include "DL3762_AFN13.h"
+#include "TopBuf.h"
+#include "TopRoute.h"
+#include "hld_ac.h"
+
 //#include <sys/time.h>
 /*
  * 函数功能:构造透明转发格式帧
@@ -131,37 +135,29 @@ void Create3761AFN10_01(unsigned char *ter, unsigned char *inbuf, int len,  unsi
  * */
 int broadcast_buf_topup(unsigned char *inbuf, int len)
 {
-	tpFrame376_1 outbuf;
-	tp3761Buffer snbuf;
-	int ret = 0;
-	struct topup_node *pp;
-//	sleep(5);
-	pthread_mutex_lock(&(topup_node_mutex));
-
-	pp = _FristTop;
-	while(NULL != pp)
+	if(0 >= get_hld_top_node_num())
 	{
-		Create3761AFN10_01(pp->ter, inbuf, len,  0, &outbuf);
-		DL3761_Protocol_LinkPack(&outbuf, &snbuf);
-		pthread_mutex_lock(&(pp->write_mutex));
-		while(1)
-		{
-			ret = write(pp->s, snbuf.Data, snbuf.Len);
-			if(ret < 0)
-			{
-				break;
-			}
-			snbuf.Len -= ret;
-			if(0 == snbuf.Len)
-			{
-				break;
-			}
-		}
-		pthread_mutex_unlock(&(pp->write_mutex));
-		pp = pp->next;
+		return -1;
 	}
 
-	pthread_mutex_unlock(&(topup_node_mutex));
+	if(0 != _hld_ac.get_status())	//未授权时，不进行数据抄收
+	{
+		return 0;
+	}
+	unsigned char ter[TER_ADDR_LEN] = {0};
+	tpFrame376_1 outbuf;
+	tp3761Buffer snbuf;
+	int i = 1;
+	while(0 == get_hld_top_node_ter(i, ter))
+	{
+		usleep(1);
+		i++;
+		//构造透明转发帧结构
+		Create3761AFN10_01(ter, inbuf, len, 0, &outbuf);
+		//将3761格式数据转换为可发送二进制数据
+		DL3761_Protocol_LinkPack(&outbuf, &snbuf);
+		send_hld_top_node_ter_data(ter, snbuf.Data, snbuf.Len);
+	}
 
 	return 0;
 }
@@ -201,7 +197,6 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 
 	CollcetStatus c_status;
 	StandNode node;
-	struct topup_node *pp;
 	unsigned char ter[4] = {0};
 	int ret = 0;
 	int is_true = -1;
@@ -261,25 +256,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 				}
 				//将3761格式数据转换为可发送二进制数据
 				DL3761_Protocol_LinkPack(&snframe3761, &ttpbuffer);
-				pthread_mutex_lock(&(topup_node_mutex));
-				pp = AccordTerFind(node_p->task_status.top_ter);
-				if(NULL != pp)
-				{
-					pthread_mutex_lock(&(pp->write_mutex));
-					while(1)
-					{
-						ret = write(pp->s, ttpbuffer.Data, ttpbuffer.Len);
-						if(ret < 0)
-						{
-							break;
-						}
-						ttpbuffer.Len -= ret;
-						if(0 == ttpbuffer.Len)
-							break;
-					}
-					pthread_mutex_unlock(&(pp->write_mutex));
-				}
-				pthread_mutex_unlock(&(topup_node_mutex));
+				send_hld_top_node_ter_data(node_p->task_status.top_ter, ttpbuffer.Data, ttpbuffer.Len);
 //				struct timeval tv;
 //				gettimeofday(&tv, NULL);
 //				printf("send top up :  %ld;  ms:  %ld\n",tv.tv_sec, (tv.tv_usec / 1000));
@@ -440,25 +417,7 @@ void DL3761_AFN10_01(tpFrame376_1 *rvframe3761)
 					Create3761AFN10_01(top_ter, b645.buf, b645.len, 0, &snframe3761);
 					//将3761格式数据转换为可发送二进制数据
 					DL3761_Protocol_LinkPack(&snframe3761, &ttpbuffer);
-					pthread_mutex_lock(&(topup_node_mutex));
-					pp = AccordTerFind(top_ter);
-					if(NULL != pp)
-					{
-						pthread_mutex_lock(&(pp->write_mutex));
-						while(1)
-						{
-							ret = write(pp->s, ttpbuffer.Data, ttpbuffer.Len);
-							if(ret < 0)
-							{
-								break;
-							}
-							ttpbuffer.Len -= ret;
-							if(0 == ttpbuffer.Len)
-								break;
-						}
-						pthread_mutex_unlock(&(pp->write_mutex));
-					}
-					pthread_mutex_unlock(&(topup_node_mutex));
+					send_hld_top_node_ter_data(top_ter, ttpbuffer.Data, ttpbuffer.Len);
 				}
 			}
 		}

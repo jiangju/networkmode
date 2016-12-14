@@ -7,13 +7,13 @@
 #define _COOLECT_C_
 #include "Collect.h"
 #undef	_COOLECT_C_
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include "Route.h"
 #include <pthread.h>
 #include <sys/time.h>
 #include <signal.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 #include "DL3762_AFN14.h"
 #include "DL376_2.h"
 #include "DL3761_AFN10.h"
@@ -29,6 +29,9 @@
 #include "SeekAmm.h"
 #include "NetWork1.h"
 #include "hld_ac.h"
+#include "TopBuf.h"
+#include "TopRoute.h"
+
 /*
  * 函数功能:初始化抄表器
  * */
@@ -311,7 +314,6 @@ int ExecuteCollect0(unsigned char *amm, unsigned char *inbuf, int len)
 	int ret = 0;
 	tpFrame376_1 outbuf;
 	tp3761Buffer snbuf;
-	TerSocket *p;
 	StandNode node;
 
 	if(0 != _hld_ac.get_status())	//未授权时，不进行数据抄收
@@ -329,46 +331,17 @@ int ExecuteCollect0(unsigned char *amm, unsigned char *inbuf, int len)
 	{
 		return -1;
 	}
-
+	if(0 == judge_seek_amm_task(node.Ter))	//如果该终端正在搜表，则不进行数据下发
+	{
+		return 0;
+	}
 	//构造透明转发帧结构
 	Create3761AFN10_01(node.Ter, inbuf, len, 1, &outbuf);
 	//将3761格式数据转换为可发送二进制数据
 	DL3761_Protocol_LinkPack(&outbuf, &snbuf);
-	//差找对应的套接字
 
-	pthread_mutex_lock(&(route_mutex));
-	p = AccordTerSeek(node.Ter);
-	if(p != NULL)
-	{
-		pthread_mutex_lock(&(p->write_mutex));
+	send_hld_route_node_ter_data(node.Ter, snbuf.Data, snbuf.Len);
 
-		while(1)
-		{
-			if(0 == judge_seek_amm_task(p->Ter)) //如果该终端正在搜表，则不进行数据下发
-				break;
-			ret = write(p->s, snbuf.Data, snbuf.Len);
-			if(ret < 0)
-			{
-				if(errno == SIGPIPE)	//等待回收
-				{
-					p->ticker = 0;
-				}
-				break;
-			}
-			snbuf.Len -= ret;
-			if(0 == snbuf.Len)
-			{
-				break;
-			}
-		}
-		pthread_mutex_unlock(&(p->write_mutex));
-	}
-	else
-	{
-		pthread_mutex_unlock(&(route_mutex));
-		return -1;
-	}
-	pthread_mutex_unlock(&(route_mutex));
 	return 0;
 }
 
@@ -382,7 +355,7 @@ int ExecuteCollect0(unsigned char *amm, unsigned char *inbuf, int len)
 int ExecuteCollect1(unsigned char *amm, unsigned char *inbuf, int len)
 {
 	printf("*******ExecuteCollect1******\n");
-	if(NULL == _FristNode)
+	if(0 >= get_hld_route_node_num())
 	{
 		return -1;
 	}
@@ -391,43 +364,22 @@ int ExecuteCollect1(unsigned char *amm, unsigned char *inbuf, int len)
 	{
 		return 0;
 	}
-
-	pthread_mutex_lock(&(route_mutex));
-	TerSocket *p = _FristNode;
+	unsigned char ter[TER_ADDR_LEN] = {0};
 	tpFrame376_1 outbuf;
 	tp3761Buffer snbuf;
-	int ret = 0;
-	while(NULL != p)
+	int i = 1;
+	while(0 == get_hld_route_node_ter(i, ter))
 	{
+		usleep(1);
+		i++;
 		//构造透明转发帧结构
-		Create3761AFN10_01(p->Ter, inbuf, len, 1, &outbuf);
+		Create3761AFN10_01(ter, inbuf, len, 1, &outbuf);
 		//将3761格式数据转换为可发送二进制数据
 		DL3761_Protocol_LinkPack(&outbuf, &snbuf);
-
-		pthread_mutex_lock(&(p->write_mutex));
-		while(1)
-		{
-			if(0 == judge_seek_amm_task(p->Ter))	//如果该终端正在搜表，则不进行数据下发
-				break;
-			ret = write(p->s, snbuf.Data, snbuf.Len);
-			if(ret < 0)
-			{
-				if(errno == SIGPIPE)	//等待回收
-				{
-					p->ticker = 0;
-				}
-				break;
-			}
-			snbuf.Len -= ret;
-			if(0 == snbuf.Len)
-			{
-				break;
-			}
-		}
-		pthread_mutex_unlock(&(p->write_mutex));
-		p = p->next;
+		if(0 == judge_seek_amm_task(ter))	//如果该终端正在搜表，则不进行数据下发
+			continue;
+		send_hld_route_node_ter_data(ter, snbuf.Data, snbuf.Len);
 	}
-	pthread_mutex_unlock(&(route_mutex));
 //	sleep(EXE_COLLECT1);	//广播后，为了防止三网合一终端因阻塞，丢失数据，需要休眠
 	return 0;
 }
@@ -557,7 +509,6 @@ void *CollectTaskA(void *arg)
 	Buff645 b645;
 	tpFrame376_1 snframe3761;
 	tp3761Buffer ttpbuffer;
-	struct topup_node *pp;
 	int ret = 0;
 	struct task_a_node *temp_node;
 	unsigned char default_mark[TER_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF};
@@ -634,25 +585,7 @@ void *CollectTaskA(void *arg)
 								Create3761AFN10_01(temp_node->task_head->top_ter, b645.buf, b645.len, 0, &snframe3761);
 								//将3761格式数据转换为可发送二进制数据
 								DL3761_Protocol_LinkPack(&snframe3761, &ttpbuffer);
-								pthread_mutex_lock(&(topup_node_mutex));
-								pp = AccordTerFind(temp_node->task_head->top_ter);
-								if(NULL != pp)
-								{
-									pthread_mutex_lock(&(pp->write_mutex));
-									while(1)
-									{
-										ret = write(pp->s, ttpbuffer.Data, ttpbuffer.Len);
-										if(ret < 0)
-										{
-											break;
-										}
-										ttpbuffer.Len -= ret;
-										if(0 == ttpbuffer.Len)
-											break;
-									}
-									pthread_mutex_unlock(&(pp->write_mutex));
-								}
-								pthread_mutex_unlock(&(topup_node_mutex));
+								send_hld_top_node_ter_data(temp_node->task_head->top_ter,ttpbuffer.Data, ttpbuffer.Len);
 							}
 							pthread_mutex_unlock(&_Collect.taska.taska_mutex);
 							DeleTaskA(temp_node->amm, 0);

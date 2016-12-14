@@ -5,7 +5,6 @@
  *      Author: j
  */
 #include "HLDUsb.h"
-#include <pthread.h>
 #include <sys/types.h>
 #include <dirent.h>
 #include <stdio.h>
@@ -16,6 +15,46 @@
 #include "SysPara.h"
 #include <string.h>
 #include <stdlib.h>
+
+static struct hld_usb_s _usb_status;
+
+/*
+ * 函数功能:初始化usb状态
+ * */
+void init_usb_status()
+{
+	_usb_status.status.s_in = 0;
+	_usb_status.status.s_log = 0;
+	_usb_status.status.s_update = 0;
+	pthread_mutex_init(&_usb_status.mutex, NULL);
+}
+
+/*
+ * 函数功能:设置usb状态
+ * 参数:		in		状态
+ * 返回值;
+ * */
+void set_usb_status(struct usb_status in)
+{
+	pthread_mutex_lock(&_usb_status.mutex);
+
+	memcpy(&_usb_status.status, &in, sizeof(struct usb_status));
+
+	pthread_mutex_unlock(&_usb_status.mutex);
+}
+
+/*
+ * 函数功能:获得USB状态
+ * 参数:		out		输出状态
+ * 返回值:
+ * */
+void get_usb_status(struct usb_status *out)
+{
+	memset(out, 0, sizeof(struct usb_status));
+	pthread_mutex_lock(&_usb_status.mutex);
+	memcpy(&out, &_usb_status.status, sizeof(struct usb_status));
+	pthread_mutex_unlock(&_usb_status.mutex);
+}
 
 /*
  * 函数功能:升级文件名合法性判断
@@ -252,7 +291,7 @@ int get_usb_dname(char *dname)
 void *pthread_usb(void *arg)
 {
 	int usb_flag = 0;	//usb 插入标志
-
+	struct usb_status temp_status;
 	//申请看门狗
 	int wdt_id = *(int *)arg;
 	//
@@ -273,12 +312,17 @@ void *pthread_usb(void *arg)
 
 	while(1)
 	{
+		init_usb_status();
 		sleep(1);	//休眠1秒
 		feed_watch_dog(wdt_id);	//喂狗
 
 		//判断U盘是否插入
 		if(0 == is_inserted_usb())
 		{
+			get_usb_status(&temp_status);
+			temp_status.s_in = 1;
+			set_usb_status(temp_status);
+
 			sleep(5);
 			feed_watch_dog(wdt_id);
 
@@ -290,34 +334,67 @@ void *pthread_usb(void *arg)
 				sprintf(dir2, "/media/%s/update",dname);
 				if(0 == access(dir1, F_OK))
 				{
+					get_usb_status(&temp_status);
+					temp_status.s_log = 1;
+					set_usb_status(temp_status);
+
 					//暂停376.2报文记录
 					feed_watch_dog(wdt_id);
 					log_3762_task_stop(&_log_3762_task);
 					memset(dir1, 0, 100);
 					sprintf(dir1, "/media/%s/log/log1_1.txt",dname);
 					feed_watch_dog(wdt_id);
-					HLDFileCopy(LOG_3762_FILE0, dir1);
+					if(0 != HLDFileCopy(LOG_3762_FILE0, dir1))
+					{
+						get_usb_status(&temp_status);
+						temp_status.s_log |= 0x10;
+						set_usb_status(temp_status);
+					}
 
 					memset(dir1, 0, 100);
 					sprintf(dir1, "/media/%s/log/log1_2.txt",dname);
 					feed_watch_dog(wdt_id);
-					HLDFileCopy(LOG_3762_FILE1, dir1);
+					if(0 != HLDFileCopy(LOG_3762_FILE1, dir1))
+					{
+						get_usb_status(&temp_status);
+						temp_status.s_log |= 0x20;
+						set_usb_status(temp_status);
+					}
 
 					memset(dir1, 0, 100);
 					sprintf(dir1, "/media/%s/log/log1_3.txt",dname);
 					feed_watch_dog(wdt_id);
-					HLDFileCopy(LOG_3762_FILE2, dir1);
+					if(0 != HLDFileCopy(LOG_3762_FILE2, dir1))
+					{
+						get_usb_status(&temp_status);
+						temp_status.s_log |= 0x40;
+						set_usb_status(temp_status);
+					}
 
 					memset(dir1, 0, 100);
 					sprintf(dir1, "/media/%s/log/log1_4.txt",dname);
 					feed_watch_dog(wdt_id);
-					HLDFileCopy(LOG_3762_FILE3, dir1);
+					if(0 != HLDFileCopy(LOG_3762_FILE3, dir1))
+					{
+						get_usb_status(&temp_status);
+						temp_status.s_log |= 0x80;
+						set_usb_status(temp_status);
+					}
+
+					get_usb_status(&temp_status);
+					temp_status.s_log &= 0xF0;
+					temp_status.s_log |= 0x02;
+					set_usb_status(temp_status);
 
 					feed_watch_dog(wdt_id);
 					log_3762_task_start(&_log_3762_task);
 				}
 				if(0 == access(dir2, F_OK))
 				{
+					get_usb_status(&temp_status);
+					temp_status.s_update = 1;
+					set_usb_status(temp_status);
+
 					//获取升级文件配置路径
 					printf("update...\n");
 					sprintf(str3, "%s/config.txt",dir2);
@@ -342,12 +419,32 @@ void *pthread_usb(void *arg)
 									system(str1);
 									system("reboot");	//升级成功  重启系统
 								}
+								else
+								{
+									get_usb_status(&temp_status);
+									temp_status.s_update = 6;
+									set_usb_status(temp_status);
+								}
 							}
+							else
+							{
+								get_usb_status(&temp_status);
+								temp_status.s_update = 5;
+								set_usb_status(temp_status);
+							}
+						}
+						else
+						{
+							get_usb_status(&temp_status);
+							temp_status.s_update = 4;
+							set_usb_status(temp_status);
 						}
 					}
 					else
 					{
-						printf("get update file name and crc erro\n");
+						get_usb_status(&temp_status);
+						temp_status.s_update = 3;
+						set_usb_status(temp_status);
 					}
 				}
 			}

@@ -135,7 +135,7 @@ void DL3761_AFN17_01(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		//没有下发被动台账时，将内容同步到被动台账，有下发被动台账时，根据搜表结果更新被动台账路径
 		seek_amm_synchroniza((unsigned char *)(*(result->amm + i)), result->ter);
 	}
-
+	result->flag = 0x55;	//有效标志
 	if(0 == add_seek_amm_result(result))
 	{
 		res = write_seek_amm_result(result);

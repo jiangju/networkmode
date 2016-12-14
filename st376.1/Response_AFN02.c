@@ -12,7 +12,7 @@
 #include <string.h>
 #include "SeekAmm.h"
 #include "StandBook.h"
-#include "NetWork1.h"
+#include "TopRoute.h"
 /*
  * 函数功能:响应登录 心跳
  * 参数:	rvframe3761 待解析的376.1数据
@@ -31,7 +31,7 @@ void ResponseAFN02_Analy(tpFrame376_1 *rvframe3761, tpFrame376_1 *snframe3761)
 		ter[2] = rvframe3761->Frame376_1Link.AddrField.Addr[0];
 		ter[3] = rvframe3761->Frame376_1Link.AddrField.Addr[1];
 
-		if(NULL == AccordTerFind(ter))	//非充值终端
+		if(0 != check_hld_top_node_ter(ter))	//非充值终端
 		{
 			if(0 == StatTerAmmNum(ter))	//终端下有无电表
 			{
